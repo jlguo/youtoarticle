@@ -1,0 +1,18 @@
+# Claude Progress — YouTube Subtitle to AI Article Converter
+
+## Project
+Cloudflare Worker TypeScript backend + vanilla JS/CSS frontend
+Tech: youtubei.js | Gemini API | Cloudflare KV | esbuild
+
+## Session 1 — Setup (Phase 1)
+- [x] Created feature_list.json with 58 test cases (8 categories)
+- [x] Created project skeleton (package.json, tsconfig.json, wrangler.toml, build.mjs)
+- [x] Created .dev.vars template, .gitignore
+- [x] Created src/backend/ placeholder files (index.ts, router.ts, youtube.ts, gemini.ts, session.ts, prompts.ts)
+- [x] Created src/frontend/ placeholder files (app.js, app.css)
+- [x] Created src/fallback-subtitles/demo.txt (hard-coded fallback for xRh2sVcNXQ8)
+- [x] Initialized git repository with first commit
+
+## Status
+Tests passing: 0/58
+Features implemented: none

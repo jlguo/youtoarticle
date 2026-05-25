@@ -1,0 +1,624 @@
+[
+  {
+    "category": "infrastructure",
+    "description": "Project has valid package.json with all required dependencies",
+    "steps": [
+      "Step 1: Verify package.json exists",
+      "Step 2: Check that dependencies include youtubei.js and a Gemini SDK package",
+      "Step 3: Check that devDependencies include wrangler, esbuild, typescript, @cloudflare/workers-types",
+      "Step 4: Verify type is set to module"
+    ],
+    "passes": false
+  },
+  {
+    "category": "infrastructure",
+    "description": "TypeScript config is valid and strict mode is enabled",
+    "steps": [
+      "Step 1: Verify tsconfig.json exists",
+      "Step 2: Check module is ESNext and moduleResolution is bundler",
+      "Step 3: Check strict is true",
+      "Step 4: Check types include @cloudflare/workers-types"
+    ],
+    "passes": false
+  },
+  {
+    "category": "infrastructure",
+    "description": "Wrangler config has nodejs_compat flag and KV binding",
+    "steps": [
+      "Step 1: Verify wrangler.toml exists",
+      "Step 2: Check compatibility_flags includes nodejs_compat",
+      "Step 3: Check main points to src/backend/index.ts",
+      "Step 4: Check KV namespace binding is defined"
+    ],
+    "passes": false
+  },
+  {
+    "category": "infrastructure",
+    "description": "Build script bundles frontend with esbuild",
+    "steps": [
+      "Step 1: Verify build.mjs exists",
+      "Step 2: Check entryPoints targets src/frontend/app.js",
+      "Step 3: Check outdir is public",
+      "Step 4: Check bundle is true and format is esm"
+    ],
+    "passes": false
+  },
+  {
+    "category": "infrastructure",
+    "description": "Dev server starts without errors and serves the app",
+    "steps": [
+      "Step 1: Run npm install",
+      "Step 2: Run node build.mjs",
+      "Step 3: Run npx wrangler dev --port 34997",
+      "Step 4: curl http://localhost:34997/ returns HTTP 200",
+      "Step 5: curl http://localhost:34997/app.js returns HTTP 200",
+      "Step 6: curl http://localhost:34997/app.css returns HTTP 200"
+    ],
+    "passes": false
+  },
+
+  {
+    "category": "subtitle",
+    "description": "YouTube URL parsing extracts video ID from youtube.com format",
+    "steps": [
+      "Step 1: Call extractVideoId with https://www.youtube.com/watch?v=xRh2sVcNXQ8",
+      "Step 2: Verify returned video ID is xRh2sVcNXQ8"
+    ],
+    "passes": false
+  },
+  {
+    "category": "subtitle",
+    "description": "YouTube URL parsing extracts video ID from youtu.be format",
+    "steps": [
+      "Step 1: Call extractVideoId with https://youtu.be/xRh2sVcNXQ8",
+      "Step 2: Verify returned video ID is xRh2sVcNXQ8"
+    ],
+    "passes": false
+  },
+  {
+    "category": "subtitle",
+    "description": "Subtitle extraction returns clean text without timestamps",
+    "steps": [
+      "Step 1: Fetch subtitles for video xRh2sVcNXQ8",
+      "Step 2: Verify returned text contains no timestamp patterns like 00:00 or -->",
+      "Step 3: Verify returned text is non-empty plain text"
+    ],
+    "passes": false
+  },
+  {
+    "category": "subtitle",
+    "description": "Subtitle language fallback chain works: zh-CN preferred over en",
+    "steps": [
+      "Step 1: Fetch subtitles with language preference zh-CN",
+      "Step 2: If zh-CN available, verify Chinese content returned",
+      "Step 3: If zh-CN unavailable, verify system falls back to en"
+    ],
+    "passes": false
+  },
+  {
+    "category": "subtitle",
+    "description": "Webshare TCP Socket proxy mode activates on captcha detection",
+    "steps": [
+      "Step 1: Simulate direct youtubei.js fetch failure due to captcha",
+      "Step 2: Verify the system retries via Webshare TCP Socket proxy",
+      "Step 3: Verify subtitles are still extracted successfully"
+    ],
+    "passes": false
+  },
+  {
+    "category": "subtitle",
+    "description": "Hard-coded subtitle fallback loads when direct and proxy both fail",
+    "steps": [
+      "Step 1: Make both direct and proxy subtitle fetch fail",
+      "Step 2: Verify system loads subtitles from src/fallback-subtitles/demo.txt",
+      "Step 3: Verify fallback content is non-empty and usable"
+    ],
+    "passes": false
+  },
+  {
+    "category": "subtitle",
+    "description": "Subtitle fallback chain never breaks — each step degrades gracefully",
+    "steps": [
+      "Step 1: Test direct fetch → proxy → hard-coded chain end-to-end",
+      "Step 2: Verify each fallback step logs appropriately",
+      "Step 3: Verify the app never crashes or hangs on subtitle failure"
+    ],
+    "passes": false
+  },
+  {
+    "category": "subtitle",
+    "description": "Non-subtitle videos show clear error message, not a crash",
+    "steps": [
+      "Step 1: Request generation for a YouTube video with no subtitles",
+      "Step 2: Verify a user-friendly error message is returned",
+      "Step 3: Verify the server does not crash"
+    ],
+    "passes": false
+  },
+
+  {
+    "category": "gemini",
+    "description": "Streaming article generation produces SSE chunks via generateContentStream",
+    "steps": [
+      "Step 1: Call Gemini generateContentStream with subtitle text",
+      "Step 2: Verify chunks are streamed back progressively",
+      "Step 3: Verify each chunk is well-formed SSE data"
+    ],
+    "passes": false
+  },
+  {
+    "category": "gemini",
+    "description": "Generated article is in Chinese and contains Markdown headings",
+    "steps": [
+      "Step 1: Stream article generation for demo video subtitles",
+      "Step 2: Verify the output is in Chinese",
+      "Step 3: Verify the output contains ## chapter headings for structure"
+    ],
+    "passes": false
+  },
+  {
+    "category": "gemini",
+    "description": "Custom generation rules (taskType, style, audience, constraint) influence output",
+    "steps": [
+      "Step 1: Generate article with rule containing audience: beginners",
+      "Step 2: Generate article without any rule",
+      "Step 3: Verify the rule-influenced output differs in tone or content"
+    ],
+    "passes": false
+  },
+  {
+    "category": "gemini",
+    "description": "5W1H summary returns valid JSON with all six keys",
+    "steps": [
+      "Step 1: Call Gemini generateContent for 5W1H with chapter context and full article",
+      "Step 2: Verify response is valid JSON",
+      "Step 3: Verify JSON contains who, what, when, where, why, how keys"
+    ],
+    "passes": false
+  },
+  {
+    "category": "gemini",
+    "description": "5W1H summary is context-aware — references full article, not just chapter",
+    "steps": [
+      "Step 1: Generate 5W1H for a chapter that depends on earlier context",
+      "Step 2: Verify the summary reflects information from other parts of the article"
+    ],
+    "passes": false
+  },
+  {
+    "category": "gemini",
+    "description": "Gemini API failures return clear error messages, not raw stack traces",
+    "steps": [
+      "Step 1: Simulate Gemini API failure (invalid key or network error)",
+      "Step 2: Verify a user-friendly error message is returned",
+      "Step 3: Verify no raw stack traces or API keys are exposed"
+    ],
+    "passes": false
+  },
+
+  {
+    "category": "session",
+    "description": "KV session is saved on article completion with correct schema",
+    "steps": [
+      "Step 1: Complete an article generation stream",
+      "Step 2: Read KV at key session:{uuid}",
+      "Step 3: Verify value contains fullText, chapters (array), and subtitle fields"
+    ],
+    "passes": false
+  },
+  {
+    "category": "session",
+    "description": "KV session can be retrieved for 5W1H generation",
+    "steps": [
+      "Step 1: Save a session to KV",
+      "Step 2: Read the session back using the session ID",
+      "Step 3: Verify all fields match what was saved"
+    ],
+    "passes": false
+  },
+  {
+    "category": "session",
+    "description": "KV session TTL is set to 3600 seconds",
+    "steps": [
+      "Step 1: Save a session to KV",
+      "Step 2: Verify the expiration/ttl is set to 3600 seconds"
+    ],
+    "passes": false
+  },
+  {
+    "category": "session",
+    "description": "Expired or missing session returns appropriate error for 5W1H",
+    "steps": [
+      "Step 1: Request 5W1H with a non-existent sessionId",
+      "Step 2: Verify a clear error response is returned (not a crash)",
+      "Step 3: Verify HTTP status is 4xx"
+    ],
+    "passes": false
+  },
+  {
+    "category": "session",
+    "description": "After generation, 5W1H queries work across page refreshes via KV persistence",
+    "steps": [
+      "Step 1: Generate an article and note the session ID",
+      "Step 2: Simulate a page refresh (new request with same sessionId)",
+      "Step 3: Verify 5W1H queries still work using the persisted KV session"
+    ],
+    "passes": false
+  },
+
+  {
+    "category": "api",
+    "description": "GET / serves the HTML frontend page",
+    "steps": [
+      "Step 1: curl http://localhost:34997/",
+      "Step 2: Verify HTTP status is 200",
+      "Step 3: Verify Content-Type is text/html"
+    ],
+    "passes": false
+  },
+  {
+    "category": "api",
+    "description": "GET /public/* serves bundled static assets",
+    "steps": [
+      "Step 1: curl http://localhost:34997/app.js",
+      "Step 2: Verify HTTP status is 200 and Content-Type is application/javascript",
+      "Step 3: curl http://localhost:34997/app.css",
+      "Step 4: Verify HTTP status is 200 and Content-Type is text/css"
+    ],
+    "passes": false
+  },
+  {
+    "category": "api",
+    "description": "POST /api/generate returns SSE stream with X-Session-Id header",
+    "steps": [
+      "Step 1: POST to /api/generate with valid youtubeUrl",
+      "Step 2: Verify Content-Type is text/event-stream",
+      "Step 3: Verify X-Session-Id header is present in the response",
+      "Step 4: Verify SSE data chunks are streamed"
+    ],
+    "passes": false
+  },
+  {
+    "category": "api",
+    "description": "POST /api/generate validates youtubeUrl format and returns 4xx on invalid input",
+    "steps": [
+      "Step 1: POST to /api/generate with youtubeUrl: not-a-url",
+      "Step 2: Verify HTTP status is 4xx",
+      "Step 3: Verify response body contains a descriptive error message"
+    ],
+    "passes": false
+  },
+  {
+    "category": "api",
+    "description": "POST /api/generate returns 4xx when youtubeUrl is missing from body",
+    "steps": [
+      "Step 1: POST to /api/generate with empty JSON body {}",
+      "Step 2: Verify HTTP status is 4xx",
+      "Step 3: Verify error message indicates missing youtubeUrl"
+    ],
+    "passes": false
+  },
+  {
+    "category": "api",
+    "description": "POST /api/5w1h returns JSON with correct structure",
+    "steps": [
+      "Step 1: POST to /api/5w1h with valid sessionId and chapter",
+      "Step 2: Verify HTTP status is 200",
+      "Step 3: Verify Content-Type is application/json",
+      "Step 4: Verify response has who, what, when, where, why, how fields"
+    ],
+    "passes": false
+  },
+  {
+    "category": "api",
+    "description": "POST /api/5w1h returns 4xx when sessionId or chapter is missing",
+    "steps": [
+      "Step 1: POST to /api/5w1h with empty body {}",
+      "Step 2: Verify HTTP status is 4xx",
+      "Step 3: Verify error message indicates missing parameters"
+    ],
+    "passes": false
+  },
+  {
+    "category": "api",
+    "description": "CORS headers are present on all API responses",
+    "steps": [
+      "Step 1: Send OPTIONS request to /api/generate",
+      "Step 2: Verify Access-Control-Allow-Origin header is present",
+      "Step 3: Verify Access-Control-Allow-Methods includes POST",
+      "Step 4: Repeat for /api/5w1h"
+    ],
+    "passes": false
+  },
+
+  {
+    "category": "frontend",
+    "description": "Input form renders with YouTube URL field, rules field, and Generate button",
+    "steps": [
+      "Step 1: Open http://localhost:34997 in browser",
+      "Step 2: Verify YouTube URL input field is visible",
+      "Step 3: Verify custom rules textarea is visible",
+      "Step 4: Verify Start Generation button is visible"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "YouTube URL input shows inline validation error for invalid format",
+    "steps": [
+      "Step 1: Open the page and type an invalid URL in the YouTube field",
+      "Step 2: Click Generate or blur the field",
+      "Step 3: Verify an inline error message appears immediately"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "Generate button is disabled during active generation",
+    "steps": [
+      "Step 1: Enter a valid YouTube URL and click Generate",
+      "Step 2: Verify the button becomes disabled immediately",
+      "Step 3: Verify the button cannot be clicked again while generation is active"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "SSE client connects and renders streamed text in real-time",
+    "steps": [
+      "Step 1: Enter a valid YouTube URL and click Generate",
+      "Step 2: Verify text appears in the result area progressively",
+      "Step 3: Verify new chunks append to the existing content (not replace)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "Typewriter effect renders SSE chunks as they arrive",
+    "steps": [
+      "Step 1: Start article generation",
+      "Step 2: Observe the result area during streaming",
+      "Step 3: Verify content updates happen in real-time as chunks arrive",
+      "Step 4: Verify there is no long blank period before content appears"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "Markdown headings (# title, ## chapters) are rendered as HTML",
+    "steps": [
+      "Step 1: Generate an article",
+      "Step 2: Verify # heading is rendered as the article title",
+      "Step 3: Verify ## headings are rendered as chapter headings",
+      "Step 4: Verify paragraphs are properly formatted"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "Chapter detection parses ## headings and injects 5W1H buttons",
+    "steps": [
+      "Step 1: Generate an article with multiple chapters",
+      "Step 2: Verify each ## heading has a [5W1H] button next to it",
+      "Step 3: Verify buttons are injected during streaming, not only at the end"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "Clicking [5W1H] button sends POST to /api/5w1h and renders summary",
+    "steps": [
+      "Step 1: Generate an article",
+      "Step 2: Click [5W1H] button next to a chapter",
+      "Step 3: Verify a loading state is shown on the button",
+      "Step 4: Verify summary box appears with structured Who/What/When/Where/Why/How"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "5W1H summary boxes are collapsed by default and expand on click",
+    "steps": [
+      "Step 1: Generate an article and open a 5W1H summary",
+      "Step 2: Verify summary box opens",
+      "Step 3: Click again to close the summary box",
+      "Step 4: Verify the summary box collapses"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "Loading state is shown during article generation",
+    "steps": [
+      "Step 1: Enter a YouTube URL and click Generate",
+      "Step 2: Verify a loading indicator appears in the result area",
+      "Step 3: Verify the loading indicator disappears when streaming completes"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "Error state is rendered clearly when generation fails",
+    "steps": [
+      "Step 1: Enter an invalid YouTube URL and click Generate",
+      "Step 2: Verify an error message is displayed in the result area",
+      "Step 3: Verify the error message is user-friendly and in Chinese"
+    ],
+    "passes": false
+  },
+  {
+    "category": "frontend",
+    "description": "5W1H client does NOT re-transmit full article — only sends sessionId + chapter",
+    "steps": [
+      "Step 1: Generate an article",
+      "Step 2: Click [5W1H] on a chapter",
+      "Step 3: Inspect the network request payload",
+      "Step 4: Verify payload contains only sessionId and chapter title, not the full article text"
+    ],
+    "passes": false
+  },
+
+  {
+    "category": "style",
+    "description": "Design tokens are applied: primary #2563eb, background #ffffff",
+    "steps": [
+      "Step 1: Open the page in browser",
+      "Step 2: Verify the primary button/emphasis color is #2563eb",
+      "Step 3: Verify the page background is #ffffff",
+      "Step 4: Verify body text color is #111827"
+    ],
+    "passes": false
+  },
+  {
+    "category": "style",
+    "description": "Typography uses system-ui at 16px base with 1.8 line-height",
+    "steps": [
+      "Step 1: Open the page in browser",
+      "Step 2: Inspect the body font-family — verify it is system-ui, sans-serif",
+      "Step 3: Inspect base font-size — verify 16px",
+      "Step 4: Inspect line-height — verify 1.8"
+    ],
+    "passes": false
+  },
+  {
+    "category": "style",
+    "description": "Input elements have rounded borders, light gray background, and focus highlight",
+    "steps": [
+      "Step 1: Inspect the YouTube URL input field",
+      "Step 2: Verify border-radius is applied",
+      "Step 3: Verify background is light gray",
+      "Step 4: Focus the input and verify a visible focus ring appears"
+    ],
+    "passes": false
+  },
+  {
+    "category": "style",
+    "description": "Buttons have hover state and clear disabled state",
+    "steps": [
+      "Step 1: Hover over the Generate button",
+      "Step 2: Verify the hover state is visually distinct",
+      "Step 3: Click Generate and verify the disabled state is clear (grayed out, not-allowed cursor)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "style",
+    "description": "Chapter cards have subtle border and padding to separate sections",
+    "steps": [
+      "Step 1: Generate an article",
+      "Step 2: Verify each chapter section has a light border (#e5e7eb)",
+      "Step 3: Verify chapters have adequate padding for visual separation"
+    ],
+    "passes": false
+  },
+  {
+    "category": "style",
+    "description": "5W1H summary box has light gray background distinct from chapter content",
+    "steps": [
+      "Step 1: Open a 5W1H summary box",
+      "Step 2: Verify the summary box background differs from the article background",
+      "Step 3: Verify the summary has clear visual separation from surrounding content"
+    ],
+    "passes": false
+  },
+  {
+    "category": "style",
+    "description": "Smooth transitions on summary box expand/collapse",
+    "steps": [
+      "Step 1: Click a [5W1H] button to expand a summary",
+      "Step 2: Verify the expand animation is smooth (CSS transition)",
+      "Step 3: Click again to collapse — verify smooth collapse animation"
+    ],
+    "passes": false
+  },
+  {
+    "category": "style",
+    "description": "Responsive layout adapts to mobile and desktop viewports",
+    "steps": [
+      "Step 1: Open the page at 375px width (mobile)",
+      "Step 2: Verify input form and content are readable and not overflowing",
+      "Step 3: Resize to 1024px width (desktop)",
+      "Step 4: Verify content uses appropriate width without excessive stretching",
+      "Step 5: Verify buttons and text remain usable at all viewport sizes"
+    ],
+    "passes": false
+  },
+
+  {
+    "category": "e2e",
+    "description": "Full flow with demo video: input URL → subtitles → streaming article → chapters",
+    "steps": [
+      "Step 1: Open the page and enter https://youtu.be/xRh2sVcNXQ8",
+      "Step 2: Click Generate",
+      "Step 3: Verify subtitles are extracted and article streams in real-time",
+      "Step 4: Verify article has ## chapter headings",
+      "Step 5: Verify [5W1H] buttons appear next to each chapter"
+    ],
+    "passes": false
+  },
+  {
+    "category": "e2e",
+    "description": "End-to-end 5W1H summary flow without client re-transmission",
+    "steps": [
+      "Step 1: Generate an article",
+      "Step 2: Click [5W1H] on a chapter",
+      "Step 3: Verify structured Who/What/When/Where/Why/How is displayed",
+      "Step 4: Verify network request only sends sessionId + chapter (not full article)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "e2e",
+    "description": "Custom generation rules observably influence AI article output",
+    "steps": [
+      "Step 1: Generate with rule: audience=children, style=simple",
+      "Step 2: Generate again without any rule for the same video",
+      "Step 3: Compare outputs — verify rule-influenced version is simpler in language"
+    ],
+    "passes": false
+  },
+  {
+    "category": "e2e",
+    "description": "Page refresh can still query 5W1H summaries via KV persistence",
+    "steps": [
+      "Step 1: Generate an article and note a chapter title",
+      "Step 2: Refresh the page",
+      "Step 3: The article may be gone from the DOM, but verify the sessionId was saved",
+      "Step 4: Manually call POST /api/5w1h with the saved sessionId and chapter",
+      "Step 5: Verify valid 5W1H JSON is returned"
+    ],
+    "passes": false
+  },
+  {
+    "category": "e2e",
+    "description": "Subtitle fallback chain works end-to-end with demo video",
+    "steps": [
+      "Step 1: Block direct youtubei.js access (simulate captcha)",
+      "Step 2: Verify the system tries the Webshare proxy",
+      "Step 3: If proxy also fails, verify hard-coded fallback subtitles are used",
+      "Step 4: Verify the article is still generated successfully from fallback content"
+    ],
+    "passes": false
+  },
+  {
+    "category": "e2e",
+    "description": "Invalid YouTube URL shows error without crashing the app",
+    "steps": [
+      "Step 1: Enter an obviously invalid URL (not-a-youtube-link) and click Generate",
+      "Step 2: Verify a clear error message is shown in the UI",
+      "Step 3: Verify the Generate button re-enables after the error",
+      "Step 4: Verify the app is still functional for a subsequent valid request"
+    ],
+    "passes": false
+  },
+  {
+    "category": "e2e",
+    "description": "Generate button re-enables after stream completion or error",
+    "steps": [
+      "Step 1: Generate an article and wait for completion",
+      "Step 2: Verify the Generate button is re-enabled",
+      "Step 3: Verify a new generation can be started immediately"
+    ],
+    "passes": false
+  }
+]

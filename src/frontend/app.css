@@ -1,0 +1,19 @@
+/* Design tokens:
+   Primary: #2563eb | Background: #ffffff | Text: #111827 | Border: #e5e7eb
+   Font: system-ui, sans-serif | 16px base | line-height: 1.8 */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.8;
+  color: #111827;
+  background-color: #ffffff;
+}
+
+/* TODO: input area, result display area, chapter cards, summary boxes */

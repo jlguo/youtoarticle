@@ -1,0 +1,355 @@
+<project_specification>
+  <project_name>YouTube Subtitle to AI Article Converter - MVP</project_name>
+
+  <overview>
+    This project builds a web application deployed on Cloudflare Worker. Users input a YouTube video link with subtitles, and AI converts the video content into a well-structured Chinese article with a single click. It supports real-time streaming generation, custom generation rules, and chapter-level 5W1H structured summaries. The core product goal is to validate the "video content → structured article" automation workflow, providing content creators and learners with an efficient information organization tool.
+  </overview>
+
+  <technology_stack>
+    <frontend>
+      <framework>Bundled vanilla JS + CSS via esbuild. No SPA framework — bundled modules for clean separation.</framework>
+      <styling>Modern Clean CSS (responsive, maintainable, semantic)</styling>
+      <state_management>DOM-based state with clean separation</state_management>
+      <routing>Single-page application, no routing required</routing>
+      <markdown>Lightweight regex parser for chapter rendering</markdown>
+      <stream_rendering>SSE streaming DOM rendering (real-time typewriter effect)</stream_rendering>
+      <bundling>esbuild bundles src/frontend/ → public/. Worker serves public/ as static assets.</bundling>
+      <port>Local: 34997 | Production: Cloudflare Worker hosted</port>
+    </frontend>
+
+    <backend>
+      <runtime>Cloudflare Worker (production-grade serverless)</runtime>
+      <language>TypeScript (type-safe, clean, maintainable)</language>
+      <http>Standard Fetch API + Request/Response</http>
+      <streaming>TransformStream + SSE (Content-Type: text/event-stream) for real-time AI output</streaming>
+      <tcp_socket>cloudflare:sockets connect() for Webshare proxy tunneling (Free plan compatible)</tcp_socket>
+      <security>Encrypted secrets via wrangler.toml or Cloudflare dashboard; no key exposure</security>
+      <performance>Global low-latency edge network</performance>
+      <modularity>Clear module separation — each file has a single responsibility</modularity>
+      <testability>Local dev server support (wrangler dev)</testability>
+      <port>Local: 34997 | Production: Serverless deployment</port>
+    </backend>
+
+    <youtube_module>
+      <library>youtubei.js (npm: youtubei.js) — most active Innertube API library</library>
+      <worker_compat>Risk: youtubei.js may use Node.js APIs incompatible with Workers. Fallback: raw Innertube HTTP calls or a Workers-compatible fork if needed.</worker_compat>
+      <caption_fetch>Innertube API with official-like stability</caption_fetch>
+      <language_strategy>zh-CN → zh → en (auto fallback chain)</language>
+      <proxy>Cloudflare TCP Socket connect() + Webshare.io proxy (anti-captcha)</proxy>
+      <reliability>Hard-coded subtitle fallback from src/fallback-subtitles/ (100% availability for demo)</reliability>
+    </youtube_module>
+
+    <ai_module>
+      <model>gemini-3.5-flash (primary). Fallback: gemini-2.5-flash if the primary model name is not yet available.</model>
+      <streaming>SSE streaming output via generateContentStream()</streaming>
+      <prompt_engineering>Structured prompt templates in src/backend/prompts.ts with clear instructions</prompt_engineering>
+      <response_format>Article text in Markdown + 5W1H structured JSON</response_format>
+      <error_handling>Graceful failure with fallback content</error_handling>
+    </ai_module>
+
+    <storage_module>
+      <service>Cloudflare KV (edge key-value storage)</service>
+      <purpose>Session context cache for 5W1H (no re-transmission of full article from client)</purpose>
+      <data_schema>Type-safe structured session object</schema>
+      <expiration>TTL 3600s (auto cleanup, cost-efficient)</expiration>
+    </storage_module>
+
+    <infrastructure>
+      <proxy_provider>Webshare.io (free, no credit card)</proxy_provider>
+      <proxy_implementation>TCP Socket tunnel via cloudflare:sockets connect() (Worker-compatible)</proxy_implementation>
+      <anti_captcha>Auto retry + proxy failover</anti_captcha>
+      <deployment>Wrangler CLI + wrangler.toml (Infrastructure as Code)</deployment>
+      <environment>Local dev + production parity (no inconsistency)</environment>
+    </infrastructure>
+  </technology_stack>
+
+  <prerequisites>
+    <item>Cloudflare account (for Worker deployment and KV namespace creation)</item>
+    <item>Google Gemini API Key (free tier, for gemini-3.5-flash)</item>
+    <item>Webshare.io free proxy account (for bypassing YouTube anti-bot / captcha)</item>
+    <item>Node.js + npm environment (local development and dependency installation)</item>
+    <item>wrangler CLI (Cloudflare Worker deployment tool)</item>
+  </prerequisites>
+
+  <core_features>
+    <!-- 1. YouTube Subtitle Extraction Module -->
+    <subtitle_extraction>
+      - Supports standard YouTube link parsing (youtube.com and youtu.be formats)
+      - Prefers Simplified Chinese subtitles; falls back to English when Chinese subtitles are unavailable
+      - Direct mode uses youtubei.js Innertube API to pull subtitles directly
+      - Automatically switches to Webshare TCP Socket proxy mode on captcha / anti-bot trigger
+      - Falls back to built-in hard-coded subtitles from src/fallback-subtitles/ when all else fails
+      - Automatically strips subtitle timestamps and irrelevant markers, outputting clean plain text
+    </subtitle_extraction>
+
+    <!-- 2. AI Streaming Article Generation Module -->
+    <article_generation>
+      - Streaming text generation via gemini-3.5-flash generateContentStream() API
+      - Frontend renders a real-time typewriter effect — content is displayed chunk by chunk as it is generated
+      - Auto-detects Markdown headings (##) for chapter division
+      - Preserves conversational tone while optimizing for readable article layout
+      - Supports optional natural-language generation rules (taskType, style, audience, constraint) sent as `rule: string` in the request body
+      - Shows loading state during generation; provides friendly degradation on failure
+    </article_generation>
+
+    <!-- 3. Chapter-Level 5W1H Summary Module -->
+    <chapter_summary>
+      - Automatically splits the article into chapters based on Markdown ## headings
+      - Chapter titles are normalized: ## prefix and leading/trailing whitespace stripped before storage and matching
+      - Clicking the [5W1H] button next to a chapter sends sessionId + chapter title to server
+      - Server retrieves full article context from KV (no client re-transmission)
+      - Generates structured Who/What/When/Where/Why/How summaries via Gemini
+      - Summaries rendered in a fixed format: Who, What, When, Where, Why, How as structured JSON
+      - Summary boxes are collapsed by default, expand on click
+    </chapter_summary>
+
+    <!-- 4. User Interaction & Frontend Experience Module -->
+    <ui_interaction>
+      - Clean single-page layout divided into input area and result display area
+      - Input area: YouTube link field (required) + custom rules text field (optional) + Generate button
+      - Generate button auto-disabled during requests to prevent duplicate submissions
+      - Article content with automatic word wrapping and reading optimization, responsive to screen widths
+      - Chapter headings clearly distinguished from body text with scroll anchoring
+      - 5W1H summary boxes collapsed by default, expand on click
+    </ui_interaction>
+
+    <!-- 5. System Stability & Error Handling Module -->
+    <error_handling>
+      - Invalid link format validation with instant feedback on input errors
+      - Subtitle fallback chain: direct → proxy → hard-coded (workflow never breaks)
+      - Gemini API failures return clear error messages for easy debugging
+      - Auto-rotates through multiple Webshare proxy nodes in proxy mode
+      - KV session caches auto-expire after 1 hour to prevent storage bloat
+      - After generation completes, session context persists in KV — 5W1H queries work across page refreshes for up to 1 hour
+    </error_handling>
+  </core_features>
+
+  <database_schema>
+    <kv_namespace>
+      <binding>KV</binding>
+      <description>Stores session context data to enable the 5W1H summary feature</description>
+      <schema>
+        <key_format>session:{sessionId}</key_format>
+        <value>
+          <object>
+            <field name="fullText" type="string" description="Complete article content"/>
+            <field name="chapters" type="array[string]" description="List of article chapter titles"/>
+            <field name="subtitle" type="string" description="Original video subtitle text"/>
+          </object>
+        </value>
+        <ttl>3600 (1 hour)</ttl>
+      </schema>
+    </kv_namespace>
+  </database_schema>
+
+  <api_endpoints_summary>
+    <pages>
+      - GET / — Serves the frontend HTML page
+      - GET /public/* — Serves bundled static assets (JS, CSS)
+    </pages>
+    <api>
+      - POST /api/generate — { youtubeUrl, rule? } → SSE stream of article text, X-Session-Id header
+      - POST /api/5w1h — { sessionId, chapter } → JSON { who, what, when, where, why, how }
+    </api>
+  </api_endpoints_summary>
+
+  <ui_layout>
+    <section name="Input Area">
+      <element>YouTube video URL input field (required, with URL format validation)</element>
+      <element>Custom generation rules text field (optional, natural language: task type, style, audience, constraints)</element>
+      <element>"Start Generation" button (triggers /api/generate, disabled during active generation)</element>
+    </section>
+    <section name="Result Display Area">
+      <element>Streaming article rendering area with Markdown heading (# for title, ## for chapters) and paragraph formatting</element>
+      <element>"5W1H" button next to each chapter heading (## level)</element>
+      <element>Collapsible structured summary box per chapter — expands on click, shows Who/What/When/Where/Why/How</element>
+    </section>
+  </ui_layout>
+
+  <design_system>
+    <color_scheme>
+      <primary>#2563eb (blue, used for buttons and emphasis elements)</primary>
+      <background>#ffffff (light background for optimal reading experience)</background>
+      <text>#111827 (dark gray, main text)</text>
+      <border>#e5e7eb (light gray, for dividers and borders)</border>
+    </color_scheme>
+    <typography>
+      <font_family>system-ui, sans-serif (cross-platform sans-serif font)</font_family>
+      <base_size>16px</base_size>
+      <line_height>1.8 (optimized reading experience)</line_height>
+    </typography>
+    <components>
+      <component name="input">Rounded border, light gray background, focus highlight</component>
+      <component name="button">Hover effect, disabled state styling (grayed out)</component>
+      <component name="chapter_card">Light border, padding to distinguish different chapters</component>
+      <component name="summary_box">Light gray background, visually distinct from chapter content</component>
+    </components>
+  </design_system>
+
+  <key_interactions>
+    <interaction>
+      <trigger>User enters a YouTube link and clicks "Start Generation"</trigger>
+      <flow>
+        <step>1. Frontend POSTs to /api/generate with { youtubeUrl, rule? }</step>
+        <step>2. Server extracts video ID, fetches subtitles: youtubei.js direct → Webshare TCP proxy → src/fallback-subtitles/</step>
+        <step>3. Server builds Gemini prompt (with optional rule constraints), calls generateContentStream()</step>
+        <step>4. Server generates a session UUID and sets X-Session-Id in the initial response headers before streaming begins</step>
+        <step>5. Server forwards each Gemini chunk to frontend via SSE; simultaneously accumulates full text for KV storage</step>
+        <step>6. On stream end, server saves { fullText, chapters[], subtitle } to KV under session:{uuid}</step>
+        <step>7. Frontend renders each chunk in real-time, parsing Markdown to detect chapters and inject 5W1H buttons</step>
+      </flow>
+    </interaction>
+    <interaction>
+      <trigger>User clicks the "5W1H" button next to a chapter heading</trigger>
+      <flow>
+        <step>1. Frontend POSTs to /api/5w1h with { sessionId, chapter }</step>
+        <step>2. Server reads session context from KV (key: session:{sessionId})</step>
+        <step>3. Server calls Gemini with chapter title + full article context to generate 5W1H JSON</step>
+        <step>4. Server returns { who, what, when, where, why, how } as JSON</step>
+        <step>5. Frontend renders the structured summary in the collapsible box below the chapter</step>
+      </flow>
+    </interaction>
+  </key_interactions>
+
+  <implementation_steps>
+    <step number="1">
+      <title>Project Initialization &amp; Foundation</title>
+      <tasks>
+        - Initialize npm project with package.json, tsconfig.json, and Cloudflare Worker types
+        - Create wrangler.toml with KV namespace binding, compatibility_date, and esbuild config
+        - Create build.mjs for frontend bundling via esbuild
+        - Install dependencies: youtubei.js (dev: wrangler, esbuild, typescript, @cloudflare/workers-types)
+        - Verify wrangler dev --port 34997 starts without errors
+        - Set up src/backend/ and src/frontend/ directory structure
+      </tasks>
+    </step>
+    <step number="2">
+      <title>YouTube Subtitle Extraction Module</title>
+      <tasks>
+        - Verify youtubei.js runs in the Cloudflare Worker runtime — if incompatible, fall back to raw Innertube HTTP calls
+        - Implement src/backend/youtube.ts with subtitle extraction via the chosen approach (youtubei.js or raw Innertube)
+        - Parse YouTube URLs (youtube.com and youtu.be formats) to extract video ID
+        - Implement language fallback chain: zh-CN → zh → en
+        - Implement Webshare TCP Socket proxy via cloudflare:sockets connect() for captcha bypass
+        - Implement hard-coded subtitle fallback from src/fallback-subtitles/demo.txt
+        - Strip timestamp markers and clean subtitle text for AI input
+      </tasks>
+    </step>
+    <step number="3">
+      <title>Gemini AI Module &amp; Prompt Templates</title>
+      <tasks>
+        - Implement src/backend/gemini.ts — Gemini API client for gemini-3.5-flash
+        - Implement generateContentStream() for streaming article generation
+        - Implement generateContent() for 5W1H structured JSON summary
+        - Create src/backend/prompts.ts with article generation prompt template
+        - Add optional rule constraint injection (taskType, style, audience, constraint) into prompts
+        - Create 5W1H summarization prompt template using chapter context + full article
+        - Add error handling with graceful fallback messages on API failure
+      </tasks>
+    </step>
+    <step number="4">
+      <title>Session Storage with Cloudflare KV</title>
+      <tasks>
+        - Implement src/backend/session.ts for KV read/write operations
+        - Save session on article completion: key session:{uuid}, value { fullText, chapters[], subtitle }, TTL 3600s
+        - Retrieve session by sessionId for 5W1H generation
+        - Auto-expire sessions after 1 hour to prevent storage bloat
+      </tasks>
+    </step>
+    <step number="5">
+      <title>Worker Router &amp; SSE Streaming Endpoints</title>
+      <tasks>
+        - Implement src/backend/router.ts — route GET / to serve HTML page
+        - Serve bundled static assets from public/ at /public/*
+        - Implement POST /api/generate: subtitle extraction → Gemini streaming → SSE response with X-Session-Id
+        - Implement POST /api/5w1h: KV context lookup → Gemini 5W1H generation → JSON response
+        - Create src/backend/index.ts entry point wiring router + fetch handler
+        - Handle CORS headers for cross-origin requests
+      </tasks>
+    </step>
+    <step number="6">
+      <title>Frontend: UI, SSE Client &amp; Markdown Rendering</title>
+      <tasks>
+        - Create HTML page with input area (YouTube URL field + custom rules text field + Generate button)
+        - Implement CSS with design system tokens: colors (#2563eb, #ffffff, #111827, #e5e7eb), typography, responsive layout
+        - Implement SSE client in vanilla JS — connect to /api/generate, read stream, append chunks to DOM
+        - Implement lightweight regex Markdown parser to detect # title, ## chapters, and paragraphs
+        - Inject [5W1H] buttons next to each ## chapter heading during streaming
+        - Implement 5W1H collapsible summary boxes — POST /api/5w1h then render Who/What/When/Where/Why/How
+        - Disable Generate button during active generation; show loading states
+        - Validate YouTube URL format on input; show inline error feedback
+      </tasks>
+    </step>
+    <step number="7">
+      <title>Integration Testing &amp; End-to-End Validation</title>
+      <tasks>
+        - Test with demo video (xRh2sVcNXQ8): subtitle extraction → streaming article → chapter rendering
+        - Test custom generation rules: verify AI output reflects taskType, style, audience, constraint
+        - Test 5W1H summaries: verify correct structured JSON; verify no client re-transmission of article
+        - Test fallback chain: simulate direct fetch failure → proxy retry → hard-coded fallback
+        - Test error cases: invalid URL, missing subtitles, API key errors, KV unavailability
+        - Verify responsive layout on mobile and desktop viewports
+      </tasks>
+    </step>
+    <step number="8">
+      <title>Deployment &amp; Go-Live</title>
+      <tasks>
+        - Create Cloudflare KV namespace via wrangler kv:namespace create
+        - Configure Gemini API key and Webshare proxy credentials as secrets
+        - Build frontend assets via node build.mjs
+        - Run wrangler deploy to publish Worker to production
+        - Verify public HTTPS access with no CORS errors
+        - Test full flow on deployed URL with demo video
+      </tasks>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <functionality>
+      - YouTube URL parsing handles both youtube.com and youtu.be formats correctly
+      - Subtitle extraction works end-to-end with the demo video (xRh2sVcNXQ8)
+      - Subtitle language fallback chain works: zh-CN → zh → en
+      - Streaming article generation produces structured Markdown in real-time via SSE
+      - Custom generation rules (taskType, style, audience, constraint) observably influence AI output
+      - Chapter detection correctly parses ## headings and injects [5W1H] buttons
+      - 5W1H summaries return correct Who/What/When/Where/Why/How for each chapter
+      - 5W1H endpoint uses server-side KV context — no client re-transmission of full article
+      - Hard-coded subtitle fallback loads correctly when direct and proxy fetch both fail
+      - URL format validation shows instant inline feedback for invalid inputs
+      - Generate button is disabled during active generation to prevent duplicate submissions
+    </functionality>
+
+    <user_experience>
+      - Streaming text renders in real-time with typewriter effect — chunks appear as they are generated
+      - 5W1H summary boxes are collapsed by default; expand smoothly on click, collapsible again
+      - Article layout is clean and readable: clear distinction between headings, paragraphs, and chapters
+      - Responsive layout adapts to mobile, tablet, and desktop screen widths
+      - Loading states are shown during generation; clear error messages on failure
+      - After generation completes, page refresh can still re-query 5W1H summaries via KV (session survives refresh)
+    </user_experience>
+
+    <technical_quality>
+      - Clean module separation: each src/backend/*.ts file has a single responsibility
+      - Gemini API key and Webshare credentials stored as secrets — never exposed to client
+      - Cloudflare KV session cache auto-expires after 1 hour (TTL 3600s)
+      - SSE streaming uses TransformStream — efficient, backpressure-aware, no memory accumulation
+      - Subtitle fallback chain is resilient: direct → proxy → hard-coded; service never fully breaks
+      - Gemini API failures return meaningful error messages, not raw stack traces
+      - Frontend JS bundled via esbuild with no framework dependencies
+      - TCP Socket proxy implementation correctly uses cloudflare:sockets connect()
+      - No CORS errors on deployed Worker
+      - All TypeScript code is type-safe with no `any` types except at system boundaries
+    </technical_quality>
+
+    <design_polish>
+      - Design system tokens applied consistently: #2563eb primary, #ffffff background, #111827 text, #e5e7eb borders
+      - Typography: system-ui sans-serif at 16px base, 1.8 line-height for comfortable reading
+      - Input elements: rounded borders, light gray background, visible focus highlight ring
+      - Buttons: hover state change, clear disabled state (grayed out + not-allowed cursor)
+      - Chapter cards: subtle border + padding to visually separate sections
+      - 5W1H summary boxes: light gray background distinct from chapter content
+      - Smooth transitions on summary box expand/collapse and button hover
+      - Excellent color contrast for accessibility (dark text on light background)
+    </design_polish>
+  </success_criteria>
+</project_specification>
