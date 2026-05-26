@@ -461,7 +461,7 @@
       "Step 3: Verify a loading state is shown on the button",
       "Step 4: Verify summary box appears with structured Who/What/When/Where/Why/How"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
