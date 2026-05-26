@@ -244,7 +244,7 @@
       "Step 2: POST to /api/generate with valid youtubeUrl",
       "Step 3: Verify SSE stream returns data: ERROR: with clear message, not raw stack trace"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "session",
