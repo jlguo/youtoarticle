@@ -440,7 +440,7 @@
       "Step 3: Verify ## headings are rendered as chapter headings",
       "Step 4: Verify paragraphs are properly formatted"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
