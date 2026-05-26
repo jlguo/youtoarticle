@@ -135,17 +135,17 @@
     "passes": false
   },
   {
-    "category": "gemini",
-    "description": "Streaming article generation produces SSE chunks via generateContentStream",
+    "category": "ai",
+    "description": "Streaming article generation produces SSE chunks via AI provider (Gemini generateContentStream or DeepSeek chat completions with stream:true)",
     "steps": [
-      "Step 1: Call Gemini generateContentStream with subtitle text",
+      "Step 1: Call AI provider streaming endpoint with subtitle text",
       "Step 2: Verify chunks are streamed back progressively",
       "Step 3: Verify each chunk is well-formed SSE data"
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "gemini",
+    "category": "ai",
     "description": "Generated article is in Chinese and contains Markdown headings",
     "steps": [
       "Step 1: Stream article generation for demo video subtitles",
@@ -155,7 +155,7 @@
     "passes": true
   },
   {
-    "category": "gemini",
+    "category": "ai",
     "description": "Custom generation rules (taskType, style, audience, constraint) influence output",
     "steps": [
       "Step 1: Generate article with rule containing audience: beginners",
@@ -165,33 +165,86 @@
     "passes": false
   },
   {
-    "category": "gemini",
-    "description": "5W1H summary returns valid JSON with all six keys",
+    "category": "ai",
+    "description": "5W1H summary returns valid JSON with all six keys via active AI provider",
     "steps": [
-      "Step 1: Call Gemini generateContent for 5W1H with chapter context and full article",
+      "Step 1: Call AI provider (Gemini generateContent or DeepSeek chat completions) for 5W1H with chapter context and full article",
       "Step 2: Verify response is valid JSON",
       "Step 3: Verify JSON contains who, what, when, where, why, how keys"
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "gemini",
+    "category": "ai",
     "description": "5W1H summary is context-aware — references full article, not just chapter",
     "steps": [
-      "Step 1: Generate 5W1H for a chapter that depends on earlier context",
+      "Step 1: Generate 5W1H via active AI provider for a chapter that depends on earlier context",
       "Step 2: Verify the summary reflects information from other parts of the article"
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "gemini",
-    "description": "Gemini API failures return clear error messages, not raw stack traces",
+    "category": "ai",
+    "description": "AI provider API failures return clear error messages, not raw stack traces",
     "steps": [
-      "Step 1: Simulate Gemini API failure (invalid key or network error)",
+      "Step 1: Simulate AI provider API failure (invalid key or network error)",
       "Step 2: Verify a user-friendly error message is returned",
       "Step 3: Verify no raw stack traces or API keys are exposed"
     ],
-    "passes": true
+    "passes": false
+  },
+  {
+    "category": "ai",
+    "description": "AI provider auto-detection: DeepSeek when DEEPSEEK_API_KEY is set, Gemini otherwise",
+    "steps": [
+      "Step 1: Start dev server with DEEPSEEK_API_KEY set in .dev.vars",
+      "Step 2: Verify AI calls route to DeepSeek (check logs or response patterns)",
+      "Step 3: Remove DEEPSEEK_API_KEY and verify AI calls fall back to Gemini"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ai",
+    "description": "DeepSeek streaming article generation via OpenAI-compatible chat completions API (stream: true)",
+    "steps": [
+      "Step 1: Configure DEEPSEEK_API_KEY and start dev server",
+      "Step 2: POST to /api/generate with valid youtubeUrl",
+      "Step 3: Verify SSE chunks arrive via DeepSeek (choices[0].delta.content format)",
+      "Step 4: Verify stream completes with [DONE] signal"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ai",
+    "description": "DeepSeek 5W1H generation returns valid structured JSON via non-streaming chat completions",
+    "steps": [
+      "Step 1: Complete an article generation via DeepSeek and note sessionId",
+      "Step 2: POST to /api/5w1h with sessionId and chapter title",
+      "Step 3: Verify response is valid JSON with who/what/when/where/why/how keys",
+      "Step 4: Verify content is context-aware Chinese text"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ai",
+    "description": "Dual-format prompt templates: plain text for Gemini (buildArticlePrompt/build5W1HPrompt) and chat messages for DeepSeek (buildArticleMessages/build5W1HMessages)",
+    "steps": [
+      "Step 1: Verify prompts.ts exports both plain-text and chat-message builders",
+      "Step 2: Verify Gemini path uses plain-text prompts",
+      "Step 3: Verify DeepSeek path uses chat messages with system+user roles",
+      "Step 4: Verify both formats produce equivalent generation quality"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ai",
+    "description": "DeepSeek API errors are caught and returned as user-friendly SSE error messages",
+    "steps": [
+      "Step 1: Configure an invalid DEEPSEEK_API_KEY",
+      "Step 2: POST to /api/generate with valid youtubeUrl",
+      "Step 3: Verify SSE stream returns data: ERROR: with clear message, not raw stack trace"
+    ],
+    "passes": false
   },
   {
     "category": "session",
