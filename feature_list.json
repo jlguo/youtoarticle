@@ -30,7 +30,7 @@
       "Step 3: Check main points to src/backend/index.ts",
       "Step 4: Check KV namespace binding is defined"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "infrastructure",
@@ -142,7 +142,7 @@
       "Step 2: Verify chunks are streamed back progressively",
       "Step 3: Verify each chunk is well-formed SSE data"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "gemini",
@@ -152,7 +152,7 @@
       "Step 2: Verify the output is in Chinese",
       "Step 3: Verify the output contains ## chapter headings for structure"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "gemini",
@@ -162,7 +162,7 @@
       "Step 2: Generate article without any rule",
       "Step 3: Verify the rule-influenced output differs in tone or content"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "gemini",
@@ -172,7 +172,7 @@
       "Step 2: Verify response is valid JSON",
       "Step 3: Verify JSON contains who, what, when, where, why, how keys"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "gemini",
@@ -181,7 +181,7 @@
       "Step 1: Generate 5W1H for a chapter that depends on earlier context",
       "Step 2: Verify the summary reflects information from other parts of the article"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "gemini",
@@ -191,7 +191,7 @@
       "Step 2: Verify a user-friendly error message is returned",
       "Step 3: Verify no raw stack traces or API keys are exposed"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "session",
@@ -272,7 +272,7 @@
       "Step 3: Verify X-Session-Id header is present in the response",
       "Step 4: Verify SSE data chunks are streamed"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",
@@ -303,7 +303,7 @@
       "Step 3: Verify Content-Type is application/json",
       "Step 4: Verify response has who, what, when, where, why, how fields"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",
@@ -313,7 +313,7 @@
       "Step 2: Verify HTTP status is 4xx",
       "Step 3: Verify error message indicates missing parameters"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",

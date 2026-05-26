@@ -13,13 +13,13 @@ Tech: youtubei.js | Gemini API | Cloudflare KV | esbuild
 - [x] Created src/fallback-subtitles/demo.txt (hard-coded fallback for xRh2sVcNXQ8)
 - [x] Initialized git repository with first commit
 
-## Session 2 — Subtitle Module
-- [x] Implemented youtube.ts: fetchSubtitles (youtubei.js Innertube), fetchSubtitlesWithProxy (TCP Socket), fetchFallbackSubtitles (hard-coded)
-- [x] Fallback chain: direct → proxy → fallback, each step degrades gracefully
-- [x] Wired /api/generate in router.ts with URL validation, CORS headers, subtitle extraction
-- [x] Language fallback: zh-Hans/zh-CN/zh → en → first available
-- [x] Timestamp stripping and subtitle XML parsing
+## Session 3 — Gemini AI Module
+- [x] Implemented gemini.ts: streamArticle (SSE NDJSON parsing), generate5W1H (structured JSON with fallback parsing)
+- [x] Wired SSE streaming in /api/generate: full-text accumulation, KV session save on stream end, X-Session-Id header
+- [x] Wired /api/5w1h: KV session lookup, Gemini 5W1H generation, JSON response
+- [x] Chapter extraction from ## headings during streaming
+- [x] Uncommented KV binding in wrangler.toml (placeholder IDs)
 
 ## Status
-Tests passing: 17/59
-Features implemented: subtitle module (8/8), API basics (CORS, validation)
+Tests passing: 27/59
+Features implemented: subtitle (8/8), gemini (6/6), API (7/8), infrastructure (5/5)

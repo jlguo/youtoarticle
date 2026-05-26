@@ -2,6 +2,8 @@
 // Static assets in public/ are auto-served by the platform via [assets] config
 
 import { extractVideoId, fetchSubtitlesWithFallback } from "./youtube";
+import { streamArticle, generate5W1H } from "./gemini";
+import { saveSession, getSession } from "./session";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -24,6 +26,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toEnv(raw: Record<string, unknown>): Env {
   return raw as unknown as Env;
+}
+
+/**
+ * Extract chapter titles from article text.
+ * Each line starting with `## ` is treated as a chapter heading.
+ */
+function extractChapters(text: string): string[] {
+  const chapters: string[] = [];
+  const regex = /^##\s+(.+)$/gm;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    chapters.push(match[1].trim());
+  }
+  return chapters;
+}
+
+/**
+ * Generate a UUID v4 string using the Web Crypto API.
+ */
+function generateUUID(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  // Set version 4 (0100 in binary) and variant (10xx)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0"));
+  return `${hex[0]}${hex[1]}${hex[2]}${hex[3]}-${hex[4]}${hex[5]}-${hex[6]}${hex[7]}-${hex[8]}${hex[9]}-${hex[10]}${hex[11]}${hex[12]}${hex[13]}${hex[14]}${hex[15]}`;
 }
 
 export async function handleRequest(
@@ -56,7 +85,8 @@ export async function handleRequest(
         return jsonResponse({ error: "Request body must be a JSON object" }, 400);
       }
 
-      const youtubeUrl = typeof body.youtubeUrl === "string" ? body.youtubeUrl : undefined;
+      const youtubeUrl =
+        typeof body.youtubeUrl === "string" ? body.youtubeUrl : undefined;
       const rule = typeof body.rule === "string" ? body.rule : undefined;
 
       if (!youtubeUrl) {
@@ -70,7 +100,10 @@ export async function handleRequest(
       const videoId = extractVideoId(youtubeUrl);
       if (!videoId) {
         return jsonResponse(
-          { error: "Invalid YouTube URL format. Please provide a valid youtube.com or youtu.be link." },
+          {
+            error:
+              "Invalid YouTube URL format. Please provide a valid youtube.com or youtu.be link.",
+          },
           400,
         );
       }
@@ -79,17 +112,161 @@ export async function handleRequest(
       const env = toEnv(rawEnv);
       const subtitles = await fetchSubtitlesWithFallback(videoId, env);
 
-      // For now, return subtitles as JSON (Gemini streaming will be added later)
-      return jsonResponse({ videoId, subtitles });
+      // Generate a session UUID for KV storage
+      const sessionId = generateUUID();
+
+      // Call Gemini streaming
+      const geminiStream = await streamArticle(
+        subtitles,
+        rule,
+        env.GEMINI_API_KEY,
+      );
+
+      // Create a transform stream that:
+      //   1. Passes SSE chunks through to the HTTP response
+      //   2. Accumulates the full article text (by parsing SSE data lines)
+      //   3. Saves the session to KV when the stream ends
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const reader = geminiStream.getReader();
+      const decoder = new TextDecoder();
+      const encoder = new TextEncoder();
+      let fullText = "";
+
+      async function pipeStream() {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+
+            // Extract actual text from SSE for accumulation
+            const dataPrefix = "data: ";
+            const dataSuffix = "\n\n";
+            if (
+              chunk.startsWith(dataPrefix) &&
+              chunk.endsWith(dataSuffix)
+            ) {
+              const data = chunk.slice(
+                dataPrefix.length,
+                -dataSuffix.length,
+              );
+              if (data !== "[DONE]" && !data.startsWith("ERROR: ")) {
+                fullText += data;
+              }
+            }
+
+            // Forward the chunk to the HTTP response
+            await writer.write(value);
+          }
+
+          // Save session to KV (fire-and-forget — log failures but don't crash)
+          if (fullText) {
+            try {
+              const chapters = extractChapters(fullText);
+              await saveSession(env.KV, sessionId, {
+                fullText,
+                chapters,
+                subtitle: subtitles,
+              });
+            } catch (kvErr) {
+              console.error("[router] Failed to save session to KV:", kvErr);
+            }
+          }
+        } catch (e) {
+          const msg =
+            e instanceof Error ? e.message : "Stream processing error";
+          try {
+            await writer.write(
+              encoder.encode(`data: ERROR: ${msg}\n\n`),
+            );
+          } catch {
+            // writer may already be errored
+          }
+        } finally {
+          try {
+            await writer.close();
+          } catch {
+            // ignore close errors
+          }
+        }
+      }
+
+      // Start streaming in background (don't await)
+      pipeStream();
+
+      // Return the SSE response immediately
+      return new Response(readable, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "X-Session-Id": sessionId,
+          ...corsHeaders(),
+        },
+      });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "An unexpected error occurred";
+      const message =
+        e instanceof Error ? e.message : "An unexpected error occurred";
       return jsonResponse({ error: message }, 500);
     }
   }
 
   // POST /api/5w1h — chapter summary
   if (request.method === "POST" && pathname === "/api/5w1h") {
-    return jsonResponse({ error: "5W1H not yet implemented" }, 501);
+    try {
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return jsonResponse({ error: "Invalid JSON body" }, 400);
+      }
+
+      if (!isRecord(body)) {
+        return jsonResponse({ error: "Request body must be a JSON object" }, 400);
+      }
+
+      const sessionId =
+        typeof body.sessionId === "string" ? body.sessionId : undefined;
+      const chapter =
+        typeof body.chapter === "string" ? body.chapter : undefined;
+
+      if (!sessionId || !chapter) {
+        return jsonResponse(
+          {
+            error:
+              "Missing required fields: sessionId and chapter are both required",
+          },
+          400,
+        );
+      }
+
+      const env = toEnv(rawEnv);
+      const session = await getSession(env.KV, sessionId);
+
+      if (!session) {
+        return jsonResponse(
+          {
+            error:
+              "Session not found. The session may have expired or the sessionId is invalid.",
+          },
+          404,
+        );
+      }
+
+      const result = await generate5W1H(
+        chapter,
+        session.fullText,
+        env.GEMINI_API_KEY,
+      );
+
+      return jsonResponse(result);
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : "An unexpected error occurred";
+      return jsonResponse({ error: message }, 500);
+    }
   }
 
   return jsonResponse({ error: "Not Found" }, 404);
