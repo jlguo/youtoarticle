@@ -2,7 +2,7 @@
 // Uses OpenAI-compatible chat completions API
 import { buildArticleMessages, build5W1HMessages } from "./prompts";
 
-const MODEL = "deepseek-chat";
+const MODEL = "deepseek-v4-flash";
 const BASE_URL = "https://api.deepseek.com/v1/chat/completions";
 
 /**
@@ -34,7 +34,6 @@ export async function streamArticle(
       messages,
       stream: true,
       temperature: 0.7,
-      max_tokens: 4096,
     }),
     signal: AbortSignal.timeout(60_000),
   });
