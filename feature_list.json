@@ -201,7 +201,7 @@
       "Step 2: POST to /api/generate?provider=deepseek — verify DeepSeek is used",
       "Step 3: POST to /api/generate?provider=unknown — verify falls back to Gemini"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ai",
