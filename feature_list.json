@@ -418,7 +418,7 @@
       "Step 2: Verify text appears in the result area progressively",
       "Step 3: Verify new chunks append to the existing content (not replace)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
