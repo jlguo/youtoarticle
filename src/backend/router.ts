@@ -232,8 +232,9 @@ export async function handleRequest(
     }
   }
 
-  // GET /api/test-stream — bypass subtitle extraction, test Gemini directly
+  // GET /api/test-stream — bypass subtitle extraction, test AI provider directly
   if (request.method === "GET" && pathname === "/api/test-stream") {
+    try {
     const env = toEnv(rawEnv);
     const testSubtitles = "人工智能正在改变世界。AI技术取得了惊人的进步。";
     const sessionId = generateUUID();
@@ -281,6 +282,10 @@ export async function handleRequest(
         ...corsHeaders(),
       },
     });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "An unexpected error occurred";
+      return jsonResponse({ error: message }, 500);
+    }
   }
 
   // POST /api/5w1h — chapter summary

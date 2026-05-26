@@ -191,7 +191,7 @@
       "Step 2: Verify a user-friendly error message is returned",
       "Step 3: Verify no raw stack traces or API keys are exposed"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ai",
