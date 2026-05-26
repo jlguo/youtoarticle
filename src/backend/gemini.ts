@@ -2,10 +2,10 @@
 import { buildArticlePrompt, build5W1HPrompt } from "./prompts";
 
 const GEMINI_MODEL = "gemini-2.5-flash";
-const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const BASE_URL = "https://generativelanguage.googleapis.com/v1/models";
 
 /**
- * Post a payload to a Gemini API endpoint and return the raw Response.
+ * Post a payload to a Gemini API endpoint using regular fetch.
  * For streaming endpoints alt=sse is appended to the query string.
  */
 async function geminiFetch(
@@ -30,8 +30,6 @@ async function geminiFetch(
  * Calls Gemini's streamGenerateContent endpoint with the article prompt,
  * parses the NDJSON response, and re-emits each text delta as a clean
  * SSE `data: {text}\n\n` line.  Sends `data: [DONE]\n\n` when finished.
- *
- * On error the thrown Error will be caught by the caller (router).
  */
 export async function streamArticle(
   subtitle: string,
@@ -62,7 +60,6 @@ export async function streamArticle(
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
 
-  // Process the Gemini NDJSON/SSE response in the background
   (async () => {
     try {
       const body = response.body;
@@ -80,9 +77,8 @@ export async function streamArticle(
 
         buffer += decoder.decode(value, { stream: true });
 
-        // Split on newlines — each line is a complete SSE data: entry
         const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // keep incomplete fragment for next iteration
+        buffer = lines.pop() || "";
 
         for (const line of lines) {
           const trimmed = line.trim();
@@ -92,7 +88,6 @@ export async function streamArticle(
           if (!jsonStr) continue;
 
           try {
-            // Gemini returns an array of candidate objects
             const chunks: Array<{
               candidates?: Array<{
                 content?: { parts?: Array<{ text?: string }> };
@@ -116,7 +111,6 @@ export async function streamArticle(
         }
       }
 
-      // Signal end of stream
       await writer.write(encoder.encode("data: [DONE]\n\n"));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Gemini stream error";
@@ -131,12 +125,10 @@ export async function streamArticle(
 
 /**
  * Generate a structured 5W1H (Who/What/When/Where/Why/How) summary for a
- * single chapter by calling the non-streaming Gemini generateContent
- * endpoint.
+ * single chapter by calling the non-streaming Gemini generateContent endpoint.
  *
  * Parses the JSON response and returns a typed object.  If parsing fails
- * a fallback object with Chinese error messages is returned so the caller
- * never has to handle a parse error.
+ * a fallback object with Chinese error messages is returned.
  */
 export async function generate5W1H(
   chapter: string,
@@ -183,13 +175,11 @@ export async function generate5W1H(
     throw new Error("Gemini returned an empty response for 5W1H generation");
   }
 
-  // Attempt to parse JSON from the response
   const parsed = tryParseJSON(text);
   if (parsed && isValid5W1H(parsed)) {
     return parsed;
   }
 
-  // Return a fallback so the API never 500s on parsing
   return {
     who: "解析失败",
     what: "无法从 AI 响应中提取结构化信息",
@@ -207,7 +197,6 @@ export async function generate5W1H(
 function tryParseJSON(
   text: string,
 ): Record<string, unknown> | null {
-  // Bare JSON
   try {
     const parsed = JSON.parse(text);
     if (typeof parsed === "object" && parsed !== null) return parsed;
@@ -215,7 +204,6 @@ function tryParseJSON(
     // fall through
   }
 
-  // Markdown-fenced ```json ... ```
   const fenced = text.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
   if (fenced) {
     try {
@@ -226,7 +214,6 @@ function tryParseJSON(
     }
   }
 
-  // Look for a JSON object embedded in free text
   const embedded = text.match(/\{[\s\S]*"who"[\s\S]*"what"[\s\S]*"why"[\s\S]*"how"[\s\S]*?\}/);
   if (embedded) {
     try {
@@ -240,7 +227,6 @@ function tryParseJSON(
   return null;
 }
 
-/** Type guard for a parsed 5W1H object. */
 function isValid5W1H(
   obj: Record<string, unknown>,
 ): obj is {

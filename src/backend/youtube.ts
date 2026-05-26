@@ -2,7 +2,7 @@
 // Fallback chain: youtubei.js direct → Webshare TCP Socket proxy → hard-coded subtitle
 
 import { Innertube } from 'youtubei.js';
-import { connect } from 'cloudflare:sockets';
+import { proxyFetch } from './proxy-fetch';
 
 // Language fallback priority: Simplified Chinese preferred, then English
 const LANG_PRIORITY = ['zh-Hans', 'zh-CN', 'zh', 'en'];
@@ -249,13 +249,20 @@ export async function fetchSubtitlesWithProxy(videoId: string, env: Env): Promis
     throw new Error('Webshare proxy not configured: set WEBSHARE_PROXY_HOST and WEBSHARE_PROXY_PORT');
   }
 
+  const proxy = {
+    host: proxyHost,
+    port: proxyPort,
+    username: env.WEBSHARE_PROXY_USERNAME,
+    password: env.WEBSHARE_PROXY_PASSWORD,
+  };
+
   const languages = ['zh-Hans', 'zh-CN', 'zh', 'en'];
   let lastError: Error | null = null;
 
   for (const lang of languages) {
     try {
       const url = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}`;
-      const xmlText = await proxyHttpRequest(url, proxyHost, proxyPort);
+      const xmlText = await proxyFetch(url, proxy);
       const parsed = parseXMLSubtitle(xmlText);
       if (parsed) {
         return parsed;
@@ -266,93 +273,6 @@ export async function fetchSubtitlesWithProxy(videoId: string, env: Env): Promis
   }
 
   throw lastError || new Error('Could not fetch subtitles through proxy for any language');
-}
-
-/**
- * Make an HTTPS request through a TCP Socket proxy tunnel.
- * Uses CONNECT method to establish a tunnel, then sends the HTTP request over TLS.
- */
-async function proxyHttpRequest(
-  targetUrl: string,
-  proxyHost: string,
-  proxyPort: number,
-): Promise<string> {
-  const urlObj = new URL(targetUrl);
-  const targetHost = urlObj.host;
-  const targetPath = urlObj.pathname + urlObj.search;
-  const targetPort = 443;
-
-  // Connect to the Webshare proxy
-  const socket = connect({ hostname: proxyHost, port: proxyPort });
-  await socket.opened;
-
-  const writer = socket.writable.getWriter();
-  const reader = socket.readable.getReader();
-  const decoder = new TextDecoder();
-  const encoder = new TextEncoder();
-
-  try {
-    // Step 1: Send HTTP CONNECT to establish tunnel to target
-    const connectReq = `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\nHost: ${targetHost}:${targetPort}\r\n\r\n`;
-    await writer.write(encoder.encode(connectReq));
-
-    // Step 2: Read CONNECT response until headers complete
-    let headerBuf = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      headerBuf += decoder.decode(value, { stream: true });
-      if (headerBuf.includes('\r\n\r\n')) break;
-      // Safety: prevent infinite loop on malformed response
-      if (headerBuf.length > 4096) break;
-    }
-
-    if (!headerBuf.includes('200')) {
-      const statusLine = headerBuf.split('\r\n')[0];
-      throw new Error(`Proxy CONNECT failed: ${statusLine}`);
-    }
-
-    // Step 3: Upgrade connection to TLS
-    const tlsSocket = socket.startTls();
-    await tlsSocket.opened;
-
-    const tlsWriter = tlsSocket.writable.getWriter();
-    const tlsReader = tlsSocket.readable.getReader();
-
-    // Step 4: Send HTTP GET request through TLS tunnel
-    const httpReq = `GET ${targetPath} HTTP/1.1\r\nHost: ${targetHost}\r\nConnection: close\r\n\r\n`;
-    await tlsWriter.write(encoder.encode(httpReq));
-
-    // Step 5: Read full response
-    let responseBuf = '';
-    while (true) {
-      const { done, value } = await tlsReader.read();
-      if (done) break;
-      responseBuf += decoder.decode(value, { stream: true });
-    }
-
-    try { tlsWriter.close(); } catch { /* ignore */ }
-    try { tlsReader.cancel(); } catch { /* ignore */ }
-
-    // Step 6: Split headers and body
-    const bodyStart = responseBuf.indexOf('\r\n\r\n');
-    if (bodyStart === -1) {
-      throw new Error('Invalid HTTP response from tunnel: no header/body separator');
-    }
-
-    const statusLine = responseBuf.substring(0, responseBuf.indexOf('\r\n'));
-    const headers = responseBuf.substring(0, bodyStart);
-    const body = responseBuf.substring(bodyStart + 4);
-
-    if (!headers.includes('200')) {
-      throw new Error(`HTTP request through proxy failed: ${statusLine}`);
-    }
-
-    return body;
-  } finally {
-    try { writer.close(); } catch { /* ignore */ }
-    try { reader.cancel(); } catch { /* ignore */ }
-  }
 }
 
 /**
