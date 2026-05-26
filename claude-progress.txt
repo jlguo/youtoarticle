@@ -66,9 +66,22 @@ All code compiles, deploys, and produces verified SSE streaming from NRT edge.
 - [x] Full streaming pipeline works locally: subtitle fallback → DeepSeek SSE → Chinese article
 - [x] 5W1H endpoint works locally: all 6 keys with context-aware Chinese content
 - [x] Toggled 4 more features: subtitle extraction clean text, 5W1H JSON (2), /api/5w1h structure
-- [ ] 19 features remain — need browser testing for frontend/style/E2E + edge case subtitle tests
+
+## Session 7 — One-at-a-Time Verification (2026-05-26)
+- [x] Reset 4 Gemini-specific features + added 5 DeepSeek features per updated app_spec.xml
+- [x] Re-verified individually (one per commit): SSE streaming, provider auto-detect, DeepSeek
+  streaming, dual-format prompts, 5W1H JSON, 5W1H context-aware, DeepSeek 5W1H
+- [x] Verified custom generation rules: with-rule uses child-friendly language vs without-rule
+- [x] Verified AI error handling: invalid key → clean JSON error, key masked, no stack traces
+- [x] Fixed test-stream error handler (was leaking stack traces on provider failure)
+- [ ] 18 features remain — all need browser/Playwright (frontend/style/E2E) or specific network
+  conditions (subtitle language chain, proxy captcha, non-subtitle video, KV TTL)
 
 ## Status
+Tests passing: 46/64
+Remaining: 18 — 7 frontend, 2 style, 5 E2E (browser needed), 3 subtitle edge cases,
+           1 session TTL (time-based). All API/backend/AI features verified.
+DeepSeek enables full local dev; no Gemini geo-restriction or rate limit blockers.
 Tests passing: 40/59
 Remaining: 19 — frontend rendering (chapters, 5W1H buttons, collapsible), subtitle edge cases, E2E.
 DeepSeek enables full local dev workflow; no more geo-restriction or rate limit blockers.
