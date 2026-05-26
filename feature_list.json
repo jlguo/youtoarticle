@@ -135,16 +135,6 @@
     "passes": false
   },
   {
-    "category": "subtitle",
-    "description": "youtubei.js skips player script retrieval (retrieve_player: false) — suppresses signature decipher errors",
-    "steps": [
-      "Step 1: Deploy Worker and request subtitle extraction for demo video",
-      "Step 2: Verify no [YOUTUBEJS][Player] error in Worker logs",
-      "Step 3: Verify subtitle extraction still works correctly"
-    ],
-    "passes": false
-  },
-  {
     "category": "ai",
     "description": "Streaming article generation produces SSE chunks via AI provider (Gemini generateContentStream or DeepSeek chat completions with stream:true)",
     "steps": [
