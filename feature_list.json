@@ -142,7 +142,7 @@
       "Step 2: Verify chunks are streamed back progressively",
       "Step 3: Verify each chunk is well-formed SSE data"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ai",
@@ -172,7 +172,7 @@
       "Step 2: Verify response is valid JSON",
       "Step 3: Verify JSON contains who, what, when, where, why, how keys"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ai",
@@ -181,7 +181,7 @@
       "Step 1: Generate 5W1H via active AI provider for a chapter that depends on earlier context",
       "Step 2: Verify the summary reflects information from other parts of the article"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ai",
@@ -201,7 +201,7 @@
       "Step 2: Verify AI calls route to DeepSeek (check logs or response patterns)",
       "Step 3: Remove DEEPSEEK_API_KEY and verify AI calls fall back to Gemini"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ai",
@@ -212,7 +212,7 @@
       "Step 3: Verify SSE chunks arrive via DeepSeek (choices[0].delta.content format)",
       "Step 4: Verify stream completes with [DONE] signal"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ai",
@@ -223,7 +223,7 @@
       "Step 3: Verify response is valid JSON with who/what/when/where/why/how keys",
       "Step 4: Verify content is context-aware Chinese text"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ai",
@@ -234,7 +234,7 @@
       "Step 3: Verify DeepSeek path uses chat messages with system+user roles",
       "Step 4: Verify both formats produce equivalent generation quality"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ai",
