@@ -82,7 +82,7 @@
       "Step 2: Verify returned text contains no timestamp patterns like 00:00 or -->",
       "Step 3: Verify returned text is non-empty plain text"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "subtitle",
@@ -172,7 +172,7 @@
       "Step 2: Verify response is valid JSON",
       "Step 3: Verify JSON contains who, what, when, where, why, how keys"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "gemini",
@@ -181,7 +181,7 @@
       "Step 1: Generate 5W1H for a chapter that depends on earlier context",
       "Step 2: Verify the summary reflects information from other parts of the article"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "gemini",
@@ -303,7 +303,7 @@
       "Step 3: Verify Content-Type is application/json",
       "Step 4: Verify response has who, what, when, where, why, how fields"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",

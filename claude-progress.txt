@@ -57,3 +57,18 @@ Tech: youtubei.js | Gemini API | Cloudflare KV | esbuild
 Tests passing: 36/59
 Remaining: 23 — need Gemini quota refresh + browser testing for frontend/style/E2E features.
 All code compiles, deploys, and produces verified SSE streaming from NRT edge.
+
+## Session 6 — DeepSeek Integration for Local Dev (2026-05-26)
+- [x] Created src/backend/deepseek.ts — OpenAI-compatible chat completions API with SSE streaming
+- [x] Added buildArticleMessages/build5W1HMessages to prompts.ts for chat message format
+- [x] Router auto-selects DeepSeek (when DEEPSEEK_API_KEY set) or falls back to Gemini
+- [x] Verified DeepSeek API works from WSL host (unlike Gemini which times out in workerd)
+- [x] Full streaming pipeline works locally: subtitle fallback → DeepSeek SSE → Chinese article
+- [x] 5W1H endpoint works locally: all 6 keys with context-aware Chinese content
+- [x] Toggled 4 more features: subtitle extraction clean text, 5W1H JSON (2), /api/5w1h structure
+- [ ] 19 features remain — need browser testing for frontend/style/E2E + edge case subtitle tests
+
+## Status
+Tests passing: 40/59
+Remaining: 19 — frontend rendering (chapters, 5W1H buttons, collapsible), subtitle edge cases, E2E.
+DeepSeek enables full local dev workflow; no more geo-restriction or rate limit blockers.

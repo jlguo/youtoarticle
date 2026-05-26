@@ -2,8 +2,24 @@
 // Static assets in public/ are auto-served by the platform via [assets] config
 
 import { extractVideoId, fetchSubtitlesWithFallback } from "./youtube";
-import { streamArticle, generate5W1H } from "./gemini";
+import { streamArticle as geminiStreamArticle, generate5W1H as gemini5W1H } from "./gemini";
+import { streamArticle as deepseekStreamArticle, generate5W1H as deepseek5W1H } from "./deepseek";
 import { saveSession, getSession } from "./session";
+
+function getStreamArticle(env: Env) {
+  if (env.DEEPSEEK_API_KEY) return deepseekStreamArticle;
+  return geminiStreamArticle;
+}
+
+function getGenerate5W1H(env: Env) {
+  if (env.DEEPSEEK_API_KEY) return deepseek5W1H;
+  return gemini5W1H;
+}
+
+function getAIProviderName(env: Env): string {
+  if (env.DEEPSEEK_API_KEY) return "deepseek";
+  return "gemini";
+}
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -115,11 +131,14 @@ export async function handleRequest(
       // Generate a session UUID for KV storage
       const sessionId = generateUUID();
 
-      // Call Gemini streaming
-      const geminiStream = await streamArticle(
+      // Call AI streaming (DeepSeek or Gemini)
+      const streamFn = getStreamArticle(env);
+      const providerName = getAIProviderName(env);
+      const aiKey = providerName === "deepseek" ? env.DEEPSEEK_API_KEY! : env.GEMINI_API_KEY;
+      const aiStream = await streamFn(
         subtitles,
         rule,
-        env.GEMINI_API_KEY,
+        aiKey,
       );
 
       // Create a transform stream that:
@@ -128,7 +147,7 @@ export async function handleRequest(
       //   3. Saves the session to KV when the stream ends
       const { readable, writable } = new TransformStream();
       const writer = writable.getWriter();
-      const reader = geminiStream.getReader();
+      const reader = aiStream.getReader();
       const decoder = new TextDecoder();
       const encoder = new TextEncoder();
       let fullText = "";
@@ -218,11 +237,14 @@ export async function handleRequest(
     const env = toEnv(rawEnv);
     const testSubtitles = "人工智能正在改变世界。AI技术取得了惊人的进步。";
     const sessionId = generateUUID();
-    const geminiStream = await streamArticle(testSubtitles, "简短回答，50字以内", env.GEMINI_API_KEY);
+    const streamFn = getStreamArticle(env);
+    const providerName = getAIProviderName(env);
+    const aiKey = providerName === "deepseek" ? env.DEEPSEEK_API_KEY! : env.GEMINI_API_KEY;
+    const aiStream = await streamFn(testSubtitles, "简短回答，50字以内", aiKey);
 
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
-    const reader = geminiStream.getReader();
+    const reader = aiStream.getReader();
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     let fullText = "";
@@ -303,10 +325,13 @@ export async function handleRequest(
         );
       }
 
-      const result = await generate5W1H(
+      const genFn = getGenerate5W1H(env);
+      const providerName = getAIProviderName(env);
+      const aiKey = providerName === "deepseek" ? env.DEEPSEEK_API_KEY! : env.GEMINI_API_KEY;
+      const result = await genFn(
         chapter,
         session.fullText,
-        env.GEMINI_API_KEY,
+        aiKey,
       );
 
       return jsonResponse(result);

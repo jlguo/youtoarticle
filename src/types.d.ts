@@ -8,4 +8,5 @@ interface Env {
   WEBSHARE_PROXY_USERNAME?: string;
   WEBSHARE_PROXY_PASSWORD?: string;
   CLOUDFLARE_API_TOKEN?: string;
+  DEEPSEEK_API_KEY?: string;
 }

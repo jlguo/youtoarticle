@@ -40,11 +40,15 @@
     </youtube_module>
 
     <ai_module>
-      <model>gemini-3.5-flash (primary). Fallback: gemini-2.5-flash if the primary model name is not yet available.</model>
-      <streaming>SSE streaming output via generateContentStream()</streaming>
-      <prompt_engineering>Structured prompt templates in src/backend/prompts.ts with clear instructions</prompt_engineering>
+      <providers>
+        <default>Gemini (gemini-2.5-flash) — generateContentStream() + generateContent(). The default AI provider for production deployment.</default>
+        <local_dev>DeepSeek (deepseek-chat) — OpenAI-compatible chat completions API. Takes priority in local development when DEEPSEEK_API_KEY is set (free tier, no credit card required).</local_dev>
+      </providers>
+      <selection_logic>Env-var auto-detection: if DEEPSEEK_API_KEY is present, all AI calls route to DeepSeek (local dev convenience); otherwise Gemini is the default (production). No runtime fallback between providers — the choice is fixed at Worker startup.</selection_logic>
+      <streaming>SSE streaming output via DeepSeek chat completions (stream: true) for local dev, or Gemini generateContentStream() by default</streaming>
+      <prompt_engineering>Dual-format prompt templates in src/backend/prompts.ts: plain text for Gemini (buildArticlePrompt / build5W1HPrompt) and chat messages for DeepSeek (buildArticleMessages / build5W1HMessages). Same generation rules, different transport format.</prompt_engineering>
       <response_format>Article text in Markdown + 5W1H structured JSON</response_format>
-      <error_handling>Graceful failure with fallback content</error_handling>
+      <error_handling>Graceful failure with fallback content; provider-specific error messages (DeepSeek/Gemini distinguished in error output)</error_handling>
     </ai_module>
 
     <storage_module>
