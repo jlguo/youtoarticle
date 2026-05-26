@@ -61,11 +61,15 @@ export async function streamArticle(
       const decoder = new TextDecoder();
       let buffer = "";
       let doneSent = false;
+      let chunkCount = 0;
 
+      console.log("[deepseek] Starting to read DeepSeek response stream...");
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
+        const rawLen = value?.length || 0;
+        chunkCount++;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
@@ -92,9 +96,23 @@ export async function streamArticle(
 
             const delta = chunk?.choices?.[0]?.delta;
             if (delta?.content) {
-              await writer.write(
-                encoder.encode(`data: ${delta.content}\n\n`),
-              );
+              const textLen = delta.content.length;
+              // SSE payloads must not contain \n — it breaks the \n\n delimiter.
+              // Split on \n and emit each line as a separate data: message.
+              // Empty lines from \n\n are preserved as data: (empty payload).
+              const segments = delta.content.split('\n');
+              for (let s = 0; s < segments.length; s++) {
+                if (s > 0) {
+                  // Emit a line-break marker: empty payload signals \n to the frontend
+                  await writer.write(encoder.encode('data: \n\n'));
+                }
+                if (segments[s]) {
+                  await writer.write(encoder.encode(`data: ${segments[s]}\n\n`));
+                }
+              }
+              if (chunkCount <= 5 || chunkCount % 100 === 0) {
+                console.log(`[deepseek] chunk #${chunkCount}: ${rawLen}B raw → forwarded ${textLen} chars`);
+              }
             }
           } catch {
             // Skip unparseable JSON fragments
@@ -105,6 +123,7 @@ export async function streamArticle(
       if (!doneSent) {
         await writer.write(encoder.encode("data: [DONE]\n\n"));
       }
+      console.log(`[deepseek] Stream complete: ${chunkCount} raw chunks received from DeepSeek`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "DeepSeek stream error";
       await writer.write(encoder.encode(`data: ERROR: ${msg}\n\n`));

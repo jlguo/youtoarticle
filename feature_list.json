@@ -429,7 +429,7 @@
       "Step 3: Verify content updates happen in real-time as chunks arrive",
       "Step 4: Verify there is no long blank period before content appears"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",

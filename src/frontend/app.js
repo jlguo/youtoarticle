@@ -149,8 +149,9 @@ async function startGeneration(youtubeUrl, rule) {
           throw new Error(payload.slice(7));
         }
 
-        // Normal text delta — append and process incrementally
-        appendTextContent(payload);
+        // Empty payload = line break marker (server can't send raw \n in SSE)
+        // Append \n to trigger the line-based incremental parser
+        appendTextContent(payload === '' ? '\n' : payload);
       }
     }
 
