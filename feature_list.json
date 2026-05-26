@@ -450,7 +450,7 @@
       "Step 2: Verify each ## heading has a [5W1H] button next to it",
       "Step 3: Verify buttons are injected during streaming, not only at the end"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
