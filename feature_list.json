@@ -472,7 +472,7 @@
       "Step 3: Click again to close the summary box",
       "Step 4: Verify the summary box collapses"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
