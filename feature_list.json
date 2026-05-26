@@ -556,7 +556,7 @@
       "Step 2: Verify each chapter section has a light border (#e5e7eb)",
       "Step 3: Verify chapters have adequate padding for visual separation"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
@@ -566,7 +566,7 @@
       "Step 2: Verify the summary box background differs from the article background",
       "Step 3: Verify the summary has clear visual separation from surrounding content"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
