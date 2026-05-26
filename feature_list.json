@@ -600,7 +600,7 @@
       "Step 4: Verify article has ## chapter headings",
       "Step 5: Verify [5W1H] buttons appear next to each chapter"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "e2e",
