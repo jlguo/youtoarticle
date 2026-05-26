@@ -162,7 +162,7 @@
       "Step 2: Generate article without any rule",
       "Step 3: Verify the rule-influenced output differs in tone or content"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ai",
