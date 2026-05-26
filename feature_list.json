@@ -503,7 +503,7 @@
       "Step 3: Inspect the network request payload",
       "Step 4: Verify payload contains only sessionId and chapter title, not the full article text"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
