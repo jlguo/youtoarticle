@@ -201,7 +201,7 @@
       "Step 2: Read KV at key session:{uuid}",
       "Step 3: Verify value contains fullText, chapters (array), and subtitle fields"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "session",
@@ -211,7 +211,7 @@
       "Step 2: Read the session back using the session ID",
       "Step 3: Verify all fields match what was saved"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "session",
@@ -220,7 +220,7 @@
       "Step 1: Save a session to KV",
       "Step 2: Verify the expiration/ttl is set to 3600 seconds"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "session",
@@ -230,7 +230,7 @@
       "Step 2: Verify a clear error response is returned (not a crash)",
       "Step 3: Verify HTTP status is 4xx"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "session",
@@ -240,7 +240,7 @@
       "Step 2: Simulate a page refresh (new request with same sessionId)",
       "Step 3: Verify 5W1H queries still work using the persisted KV session"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",
@@ -335,7 +335,7 @@
       "Step 3: Verify custom rules textarea is visible",
       "Step 4: Verify Start Generation button is visible"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -345,7 +345,7 @@
       "Step 2: Click Generate or blur the field",
       "Step 3: Verify an inline error message appears immediately"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -355,7 +355,7 @@
       "Step 2: Verify the button becomes disabled immediately",
       "Step 3: Verify the button cannot be clicked again while generation is active"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -365,7 +365,7 @@
       "Step 2: Verify text appears in the result area progressively",
       "Step 3: Verify new chunks append to the existing content (not replace)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -376,7 +376,7 @@
       "Step 3: Verify content updates happen in real-time as chunks arrive",
       "Step 4: Verify there is no long blank period before content appears"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -387,7 +387,7 @@
       "Step 3: Verify ## headings are rendered as chapter headings",
       "Step 4: Verify paragraphs are properly formatted"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -397,7 +397,7 @@
       "Step 2: Verify each ## heading has a [5W1H] button next to it",
       "Step 3: Verify buttons are injected during streaming, not only at the end"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -408,7 +408,7 @@
       "Step 3: Verify a loading state is shown on the button",
       "Step 4: Verify summary box appears with structured Who/What/When/Where/Why/How"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -419,7 +419,7 @@
       "Step 3: Click again to close the summary box",
       "Step 4: Verify the summary box collapses"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -429,7 +429,7 @@
       "Step 2: Verify a loading indicator appears in the result area",
       "Step 3: Verify the loading indicator disappears when streaming completes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -439,7 +439,7 @@
       "Step 2: Verify an error message is displayed in the result area",
       "Step 3: Verify the error message is user-friendly and in Chinese"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -450,7 +450,7 @@
       "Step 3: Inspect the network request payload",
       "Step 4: Verify payload contains only sessionId and chapter title, not the full article text"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
@@ -461,7 +461,7 @@
       "Step 3: Verify the page background is #ffffff",
       "Step 4: Verify body text color is #111827"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
@@ -472,7 +472,7 @@
       "Step 3: Inspect base font-size — verify 16px",
       "Step 4: Inspect line-height — verify 1.8"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
@@ -483,7 +483,7 @@
       "Step 3: Verify background is light gray",
       "Step 4: Focus the input and verify a visible focus ring appears"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
@@ -493,7 +493,7 @@
       "Step 2: Verify the hover state is visually distinct",
       "Step 3: Click Generate and verify the disabled state is clear (grayed out, not-allowed cursor)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
@@ -503,7 +503,7 @@
       "Step 2: Verify each chapter section has a light border (#e5e7eb)",
       "Step 3: Verify chapters have adequate padding for visual separation"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
@@ -513,7 +513,7 @@
       "Step 2: Verify the summary box background differs from the article background",
       "Step 3: Verify the summary has clear visual separation from surrounding content"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
@@ -523,7 +523,7 @@
       "Step 2: Verify the expand animation is smooth (CSS transition)",
       "Step 3: Click again to collapse — verify smooth collapse animation"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "style",
@@ -535,7 +535,7 @@
       "Step 4: Verify content uses appropriate width without excessive stretching",
       "Step 5: Verify buttons and text remain usable at all viewport sizes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "e2e",

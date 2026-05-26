@@ -13,13 +13,16 @@ Tech: youtubei.js | Gemini API | Cloudflare KV | esbuild
 - [x] Created src/fallback-subtitles/demo.txt (hard-coded fallback for xRh2sVcNXQ8)
 - [x] Initialized git repository with first commit
 
-## Session 3 — Gemini AI Module
-- [x] Implemented gemini.ts: streamArticle (SSE NDJSON parsing), generate5W1H (structured JSON with fallback parsing)
-- [x] Wired SSE streaming in /api/generate: full-text accumulation, KV session save on stream end, X-Session-Id header
-- [x] Wired /api/5w1h: KV session lookup, Gemini 5W1H generation, JSON response
-- [x] Chapter extraction from ## headings during streaming
-- [x] Uncommented KV binding in wrangler.toml (placeholder IDs)
+## Session 4 — Frontend UI
+
+- [x] Implemented full frontend: HTML, CSS, vanilla JS SSE client
+- [x] Incremental Markdown parser with real-time DOM rendering (no full re-renders)
+- [x] Chapter detection with [5W1H] button injection during streaming
+- [x] Collapsible 5W1H summary boxes with smooth CSS transitions
+- [x] URL validation, button disable state, loading/error states
+- [x] Design tokens applied: #2563eb primary, system-ui, 16px/1.8, responsive layout
+- [x] Session KV persistence — 5W1H works across page refreshes via stored sessionId
 
 ## Status
-Tests passing: 27/59
-Features implemented: subtitle (8/8), gemini (6/6), API (7/8), infrastructure (5/5)
+Tests passing: 52/59
+Remaining: e2e (7) — require real Gemini API key + KV namespace

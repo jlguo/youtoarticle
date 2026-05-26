@@ -7,7 +7,48 @@
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <div id="app">Loading...</div>
+  <div class="container">
+    <header class="header">
+      <h1 class="site-title">YouTube 文章生成器</h1>
+      <p class="site-desc">输入 YouTube 链接，AI 自动生成中文文章</p>
+    </header>
+
+    <section class="input-section">
+      <div class="form-group">
+        <label for="youtube-url">YouTube 链接 <span class="required">*</span></label>
+        <input
+          type="url"
+          id="youtube-url"
+          class="url-input"
+          placeholder="https://www.youtube.com/watch?v=... 或 https://youtu.be/..."
+          required
+          autofocus
+        >
+        <span class="input-error" id="url-error" role="alert"></span>
+      </div>
+      <div class="form-group">
+        <label for="custom-rules">自定义生成要求（可选）</label>
+        <textarea
+          id="custom-rules"
+          class="rules-textarea"
+          placeholder="输入自定义生成要求..."
+          rows="3"
+        ></textarea>
+      </div>
+      <button id="generate-btn" class="btn-primary">开始生成</button>
+    </section>
+
+    <div id="loading" class="loading-indicator" style="display: none;">
+      <span class="spinner"></span>
+      <span class="loading-text">正在生成文章...</span>
+    </div>
+
+    <div id="error" class="error-message" style="display: none;" role="alert"></div>
+
+    <section id="result" class="result-section">
+      <!-- Content rendered dynamically during streaming -->
+    </section>
+  </div>
   <script src="/app.js" type="module"></script>
 </body>
 </html>
