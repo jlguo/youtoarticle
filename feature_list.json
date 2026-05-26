@@ -611,7 +611,7 @@
       "Step 3: Verify structured Who/What/When/Where/Why/How is displayed",
       "Step 4: Verify network request only sends sessionId + chapter (not full article)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "e2e",
@@ -621,7 +621,7 @@
       "Step 2: Generate again without any rule for the same video",
       "Step 3: Compare outputs — verify rule-influenced version is simpler in language"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "e2e",
@@ -633,7 +633,7 @@
       "Step 4: Manually call POST /api/5w1h with the saved sessionId and chapter",
       "Step 5: Verify valid 5W1H JSON is returned"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "e2e",
@@ -644,7 +644,7 @@
       "Step 3: If proxy also fails, verify hard-coded fallback subtitles are used",
       "Step 4: Verify the article is still generated successfully from fallback content"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "e2e",
