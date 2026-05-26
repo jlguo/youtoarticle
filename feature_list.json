@@ -142,7 +142,7 @@
       "Step 2: Verify chunks are streamed back progressively",
       "Step 3: Verify each chunk is well-formed SSE data"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "gemini",
@@ -152,7 +152,7 @@
       "Step 2: Verify the output is in Chinese",
       "Step 3: Verify the output contains ## chapter headings for structure"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "gemini",
@@ -191,7 +191,7 @@
       "Step 2: Verify a user-friendly error message is returned",
       "Step 3: Verify no raw stack traces or API keys are exposed"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "session",
@@ -201,7 +201,7 @@
       "Step 2: Read KV at key session:{uuid}",
       "Step 3: Verify value contains fullText, chapters (array), and subtitle fields"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "session",
@@ -211,7 +211,7 @@
       "Step 2: Read the session back using the session ID",
       "Step 3: Verify all fields match what was saved"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "session",
@@ -240,7 +240,7 @@
       "Step 2: Simulate a page refresh (new request with same sessionId)",
       "Step 3: Verify 5W1H queries still work using the persisted KV session"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",
@@ -272,7 +272,7 @@
       "Step 3: Verify X-Session-Id header is present in the response",
       "Step 4: Verify SSE data chunks are streamed"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",

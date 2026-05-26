@@ -88,15 +88,14 @@ export async function streamArticle(
           if (!jsonStr) continue;
 
           try {
-            const chunks: Array<{
+            const data: {
               candidates?: Array<{
                 content?: { parts?: Array<{ text?: string }> };
               }>;
-            }> = JSON.parse(jsonStr);
+            } = JSON.parse(jsonStr);
 
-            for (const chunk of chunks) {
-              const parts = chunk?.candidates?.[0]?.content?.parts;
-              if (!parts) continue;
+            const parts = data?.candidates?.[0]?.content?.parts;
+            if (parts) {
               for (const part of parts) {
                 if (part.text) {
                   await writer.write(

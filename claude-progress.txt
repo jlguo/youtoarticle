@@ -40,12 +40,20 @@ Tech: youtubei.js | Gemini API | Cloudflare KV | esbuild
 - [x] Toggled 2 subtitle features to true (hard-coded fallback, fallback chain never breaks)
 - [x] Verified deployed worker: URL validation, missing params, missing session all return correct 4xx errors
 - [x] Verified subtitle extraction works from HK edge (reached Gemini API successfully)
-- [ ] 30 features remain false — Gemini API geo-restricted in HK (Cloudflare Workers edge colo=HKG)
-  - Gemini API returns: "User location is not supported for the API use" (FAILED_PRECONDITION)
-  - The Webshare US proxy could theoretically work around this but cloudflare:sockets connect() is unreliable from edge nodes
-  - Recommendation: deploy to a US/EU Cloudflare region, or enable billing on the Google Cloud project (paid API keys work in all regions)
+
+## Session 5.5 — VPN to JP, SSE Fix, and Verification (2026-05-26)
+- [x] User switched VPN to Japan — Worker now routes to NRT (Tokyo) edge (cf-placement: local-NRT)
+- [x] Found and fixed SSE parsing bug: Gemini v1 returns single JSON object, parser expected array — all text was silently swallowed
+- [x] Verified SSE streaming with concrete output: multi-chunk Chinese article with #, ##, ### Markdown headings
+- [x] Verified X-Session-Id header (UUID v4), Content-Type: text/event-stream, CORS headers on deployed worker
+- [x] Verified KV session persistence: separate curl requests across sessions, 5W1H endpoint found session
+- [x] Toggled 7 features to true: SSE streaming (2), session KV (3), API SSE+headers (1), error handling (1)
+- [ ] 23 features remain false — blocked by Gemini free-tier rate limit (20 req/day for gemini-2.5-flash)
+  - The Gemini API works from JP edge but we exhausted the daily quota during testing
+  - 5W1H verification, custom rules, frontend/E2E features need fresh quota
+  - Smart Placement enabled in wrangler.toml (cf-placement: local-NRT confirmed)
 
 ## Status
-Tests passing: 29/59
-Remaining: 30 — blocked by Gemini API geo-restriction (HK edge + free tier API key).
-All code compiles and deploys successfully. Subtitle extraction works; Gemini API is the blocker.
+Tests passing: 36/59
+Remaining: 23 — need Gemini quota refresh + browser testing for frontend/style/E2E features.
+All code compiles, deploys, and produces verified SSE streaming from NRT edge.
