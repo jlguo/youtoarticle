@@ -75,10 +75,25 @@ All code compiles, deploys, and produces verified SSE streaming from NRT edge.
 - [x] Verified AI error handling: invalid key → clean JSON error, key masked, no stack traces
 - [x] Fixed test-stream error handler (was leaking stack traces on provider failure)
 - [ ] 18 features remain — all need browser/Playwright (frontend/style/E2E) or specific network
-  conditions (subtitle language chain, proxy captcha, non-subtitle video, KV TTL)
+
+## Session 8 — Playwright Verification (2026-05-26)
+- [x] Fixed SSE newline handling: \n in DeepSeek delta.content broke SSE \n\n delimiter.
+  Server now splits on \n, sends empty-payload markers; frontend converts them back to \n.
+  This fixed the typewriter effect AND Markdown heading rendering (both were broken).
+- [x] Playwright-verified frontend features: SSE rendering [40], typewriter effect [41],
+  Markdown headings [42], chapter detection+buttons [43], 5W1H click+render [44],
+  collapsible summaries [45], no article re-transmission [48]
+- [x] Playwright-verified style features: chapter cards border #e5e7eb [53],
+  summary box bg #f3f4f6 [54]
+- [x] Playwright-verified E2E features: full flow [57], 5W1H summary [58],
+  custom rules [59], KV persistence across refresh [60], fallback chain [61]
+- [ ] 4 features remain — all blocked by workerd network limitations in WSL:
+  subtitle language chain [8], proxy captcha [9], non-subtitle video [12], KV TTL [26]
 
 ## Status
-Tests passing: 46/64
+Tests passing: 60/64
+Remaining: 4 — require network access from workerd (YouTube API) or time-based testing.
+All API, AI, frontend, style, and E2E features verified with concrete curl/Playwright output.
 Remaining: 18 — 7 frontend, 2 style, 5 E2E (browser needed), 3 subtitle edge cases,
            1 session TTL (time-based). All API/backend/AI features verified.
 DeepSeek enables full local dev; no Gemini geo-restriction or rate limit blockers.
