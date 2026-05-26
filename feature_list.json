@@ -45,6 +45,20 @@
   },
   {
     "category": "infrastructure",
+    "description": "Smoke test passes: build, dev server, static assets, chapter detection, default-mode generation, 5W1H summary, and error handling all work end-to-end",
+    "steps": [
+      "Step 1: Run node build.mjs and start wrangler dev --port 34997",
+      "Step 2: curl http://localhost:34997/ returns HTTP 200 with HTML content",
+      "Step 3: curl http://localhost:34997/app.js returns HTTP 200 with JavaScript content",
+      "Step 4: POST to /api/generate with demo video URL and default mode returns SSE stream with session ID header",
+      "Step 5: POST to /api/5w1h with valid session ID and chapter title returns all six 5W1H fields",
+      "Step 6: POST to /api/generate with invalid URL returns 4xx error",
+      "Step 7: POST to /api/5w1h with empty body returns 4xx error"
+    ],
+    "passes": true
+  },
+  {
+    "category": "infrastructure",
     "description": "Dev server starts without errors and serves the app",
     "steps": [
       "Step 1: Run npm install",
@@ -293,7 +307,7 @@
       "Step 1: Save a session to KV",
       "Step 2: Verify the expiration/ttl is set to 3600 seconds"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "session",
@@ -401,12 +415,14 @@
   },
   {
     "category": "frontend",
-    "description": "Input form renders with YouTube URL field, rules field, and Generate button",
+    "description": "Input area renders with YouTube URL field, custom rules textarea, model selector, and Generate button (single-click flow)",
     "steps": [
       "Step 1: Open http://localhost:34997 in browser",
-      "Step 2: Verify YouTube URL input field is visible",
-      "Step 3: Verify custom rules textarea is visible",
-      "Step 4: Verify Start Generation button is visible"
+      "Step 2: Verify YouTube URL input field is visible in the input area",
+      "Step 3: Verify custom rules textarea is visible in the input area",
+      "Step 4: Verify AI model selector dropdown is visible",
+      "Step 5: Verify Generate button (生成文章) is visible",
+      "Step 6: Verify no Fetch Chapters or chapter selection elements are visible"
     ],
     "passes": true
   },
@@ -422,11 +438,12 @@
   },
   {
     "category": "frontend",
-    "description": "Generate button is disabled during active generation",
+    "description": "Generate button is disabled during active generation and re-enables after completion",
     "steps": [
       "Step 1: Enter a valid YouTube URL and click Generate",
-      "Step 2: Verify the button becomes disabled immediately",
-      "Step 3: Verify the button cannot be clicked again while generation is active"
+      "Step 2: Verify the Generate button becomes disabled immediately",
+      "Step 3: Verify the button shows '生成中...' text during generation",
+      "Step 4: Verify the button re-enables and shows '开始生成' after completion"
     ],
     "passes": true
   },
@@ -464,11 +481,11 @@
   },
   {
     "category": "frontend",
-    "description": "Chapter detection parses ## headings and injects 5W1H buttons",
+    "description": "Chapter detection parses ## headings and injects 5W1H buttons after article completion",
     "steps": [
       "Step 1: Generate an article with multiple chapters",
-      "Step 2: Verify each ## heading has a [5W1H] button next to it",
-      "Step 3: Verify buttons are injected during streaming, not only at the end"
+      "Step 2: Verify each ## heading has a [5W1H] button next to it after streaming completes",
+      "Step 3: Verify buttons are injected after [DONE], not during streaming"
     ],
     "passes": true
   },
@@ -496,21 +513,23 @@
   },
   {
     "category": "frontend",
-    "description": "Loading state is shown during article generation",
+    "description": "Loading state is shown during article generation with spinner and blinking cursor",
     "steps": [
-      "Step 1: Enter a YouTube URL and click Generate",
-      "Step 2: Verify a loading indicator appears in the result area",
-      "Step 3: Verify the loading indicator disappears when streaming completes"
+      "Step 1: Enter a valid YouTube URL and click Generate",
+      "Step 2: Verify loading spinner appears during article generation",
+      "Step 3: Verify blinking cursor appears during SSE streaming",
+      "Step 4: Verify loading indicator and cursor disappear when streaming completes"
     ],
     "passes": true
   },
   {
     "category": "frontend",
-    "description": "Error state is rendered clearly when generation fails",
+    "description": "Error state is rendered clearly when URL is invalid or generation fails",
     "steps": [
       "Step 1: Enter an invalid YouTube URL and click Generate",
-      "Step 2: Verify an error message is displayed in the result area",
-      "Step 3: Verify the error message is user-friendly and in Chinese"
+      "Step 2: Verify an error message is displayed in a visible area",
+      "Step 3: Verify the error message is user-friendly and in Chinese",
+      "Step 4: Verify the input remains functional for a retry"
     ],
     "passes": true
   },
@@ -590,11 +609,12 @@
   },
   {
     "category": "style",
-    "description": "Chapter cards have subtle border and padding to separate sections",
+    "description": "Chapter headings have comfortable top margin to separate sections, no border boxes",
     "steps": [
       "Step 1: Generate an article",
-      "Step 2: Verify each chapter section has a light border (#e5e7eb)",
-      "Step 3: Verify chapters have adequate padding for visual separation"
+      "Step 2: Verify each chapter heading (h2) has a comfortable top margin (28px) for visual separation",
+      "Step 3: Verify no .chapter-block border or padding styling is applied",
+      "Step 4: Verify chapters use natural line breaks rather than bordered cards"
     ],
     "passes": true
   },
@@ -632,13 +652,13 @@
   },
   {
     "category": "e2e",
-    "description": "Full flow with demo video: input URL → subtitles → streaming article → chapters",
+    "description": "Full flow with demo video: input URL, click Generate, streaming output, chapter rendering with 5W1H buttons",
     "steps": [
       "Step 1: Open the page and enter https://youtu.be/xRh2sVcNXQ8",
       "Step 2: Click Generate",
-      "Step 3: Verify subtitles are extracted and article streams in real-time",
-      "Step 4: Verify article has ## chapter headings",
-      "Step 5: Verify [5W1H] buttons appear next to each chapter"
+      "Step 3: Verify loading spinner appears, then article streams in real-time",
+      "Step 4: Verify chapter headings (h2) are rendered with natural line breaks",
+      "Step 5: Verify 5W1H buttons appear next to each chapter after completion"
     ],
     "passes": true
   },
@@ -688,7 +708,7 @@
   },
   {
     "category": "e2e",
-    "description": "Invalid YouTube URL shows error without crashing the app",
+    "description": "Invalid YouTube URL shows inline validation error without crashing the app",
     "steps": [
       "Step 1: Enter an obviously invalid URL (not-a-youtube-link) and click Generate",
       "Step 2: Verify a clear error message is shown in the UI",
@@ -706,5 +726,213 @@
       "Step 3: Verify a new generation can be started immediately"
     ],
     "passes": true
+  },
+  {
+    "category": "api",
+    "description": "POST /api/chapters returns detected chapter list with titles and summaries from subtitle text",
+    "steps": [
+      "Step 1: POST to /api/chapters with valid youtubeUrl",
+      "Step 2: Verify HTTP status is 200 and Content-Type is application/json",
+      "Step 3: Verify response contains videoTitle (string) and chapters (array)",
+      "Step 4: Verify each chapter has index (number), title (string), and summary (string)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "api",
+    "description": "POST /api/chapters returns 4xx when youtubeUrl is missing or invalid",
+    "steps": [
+      "Step 1: POST to /api/chapters with empty body {}",
+      "Step 2: Verify HTTP status is 4xx",
+      "Step 3: POST to /api/chapters with invalid URL",
+      "Step 4: Verify HTTP status is 4xx with clear error message"
+    ],
+    "passes": true
+  },
+  {
+    "category": "api",
+    "description": "POST /api/generate accepts selectedChapters array and only includes selected chapters in output",
+    "steps": [
+      "Step 1: First call POST /api/chapters to get chapter list",
+      "Step 2: POST to /api/generate with selectedChapters: [0, 2] (select chapters 1 and 3)",
+      "Step 3: Verify SSE stream only contains content for chapters at indices 0 and 2",
+      "Step 4: Verify chapters at other indices are NOT in the output"
+    ],
+    "passes": true
+  },
+  {
+    "category": "ai",
+    "description": "Default mode (no custom rules): article preserves original subtitle wording — only chapter headings are added",
+    "steps": [
+      "Step 1: POST to /api/generate with youtubeUrl, no rule field",
+      "Step 2: Verify the SSE stream output preserves the original subtitle text wording",
+      "Step 3: Verify chapter headings are inserted at topic boundaries",
+      "Step 4: Verify no AI rewriting or summarization occurs in the output"
+    ],
+    "passes": true
+  },
+  {
+    "category": "ai",
+    "description": "Custom rule mode (rules provided): AI generates article strictly following user requirements",
+    "steps": [
+      "Step 1: POST to /api/generate with youtubeUrl and rule containing style=concise",
+      "Step 2: Verify the output is rewritten (not original subtitle wording)",
+      "Step 3: Verify the output follows the concise style requirement",
+      "Step 4: Compare output with and without rule — verify they are different"
+    ],
+    "passes": true
+  },
+  {
+    "category": "frontend",
+    "description": "Chapter headings are rendered as h2 elements with natural line breaks, no border boxes",
+    "steps": [
+      "Step 1: Generate an article with multiple chapters",
+      "Step 2: Verify each ## heading is rendered as an h2 element",
+      "Step 3: Verify chapters are separated by natural line breaks, not bordered boxes",
+      "Step 4: Verify no .chapter-block elements are present"
+    ],
+    "passes": true
+  },
+  {
+    "category": "frontend",
+    "description": "Generate button shows disabled state during generation and loading text (生成中...)",
+    "steps": [
+      "Step 1: Enter a valid YouTube URL and click Generate",
+      "Step 2: Verify Generate button is disabled during the request",
+      "Step 3: Verify button text changes to '生成中...'",
+      "Step 4: Wait for completion and verify button re-enables with text '开始生成'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "frontend",
+    "description": "Custom rules text field is shown in the input area, visible from page load",
+    "steps": [
+      "Step 1: Open the page — verify input area has URL field, custom rules field, model selector, and Generate button",
+      "Step 2: Verify custom rules textarea is visible immediately without any additional step",
+      "Step 3: Verify rules field is optional"
+    ],
+    "passes": true
+  },
+  {
+    "category": "frontend",
+    "description": "Result area shows streaming content during generation; article is displayed after completion",
+    "steps": [
+      "Step 1: Enter a valid YouTube URL and click Generate",
+      "Step 2: Verify loading spinner and result area are shown",
+      "Step 3: Verify article content streams into the result area in real-time",
+      "Step 4: After completion, verify full article with chapter headings and 5W1H buttons is displayed"
+    ],
+    "passes": true
+  },
+  {
+    "category": "ai",
+    "description": "Default output language is Chinese; user can override via custom rules",
+    "steps": [
+      "Step 1: Generate article without any rule — verify output is in Chinese",
+      "Step 2: Generate article with rule containing output language preference for English",
+      "Step 3: Verify the rule-specified language takes effect in the output",
+      "Step 4: Verify default Chinese resumes when no language rule is given"
+    ],
+    "passes": true
+  },
+  {
+    "category": "api",
+    "description": "POST /api/chapters respects ?provider= query parameter for chapter detection",
+    "steps": [
+      "Step 1: POST to /api/chapters?provider=deepseek with valid youtubeUrl",
+      "Step 2: Verify DeepSeek is used for chapter detection",
+      "Step 3: POST to /api/chapters without provider parameter",
+      "Step 4: Verify Gemini is used by default"
+    ],
+    "passes": true
+  },
+  {
+    "category": "frontend",
+    "description": "Loading spinner is shown during article generation, hidden on completion or error",
+    "steps": [
+      "Step 1: Enter a valid YouTube URL and click Generate",
+      "Step 2: Verify loading spinner appears immediately",
+      "Step 3: Verify loading spinner is hidden when streaming completes or on error"
+    ],
+    "passes": true
+  },
+  {
+    "category": "frontend",
+    "description": "Model selector dropdown is shown and appends ?provider= to fetch URLs",
+    "steps": [
+      "Step 1: Open the page",
+      "Step 2: Verify a model selector dropdown is visible with Gemini 2.5 Flash (default) and DeepSeek V4 Flash options",
+      "Step 3: Select DeepSeek and verify the dropdown value changes",
+      "Step 4: Verify the fetch URL for /api/chapters includes ?provider=deepseek when DeepSeek is selected"
+    ],
+    "passes": true
+  },
+  {
+    "category": "ai",
+    "description": "Default mode detect topic boundaries and merges same-topic content into chapters",
+    "steps": [
+      "Step 1: POST to /api/generate with subtitle text containing multiple topics, no rule field",
+      "Step 2: Verify the output groups same-topic content under one ## chapter heading",
+      "Step 3: Verify topic transitions are marked with new ## chapter headings",
+      "Step 4: Verify content within a chapter is topically coherent"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ai",
+    "description": "Default mode formats dialogue with speaker name prefixes (Name: content), one speaker per line",
+    "steps": [
+      "Step 1: POST to /api/generate with subtitle text containing conversation between multiple speakers, no rule field",
+      "Step 2: Verify each speaker line is prefixed with their name (e.g., Jen: ..., Mark: ...)",
+      "Step 3: Verify each speaker turn is on its own line",
+      "Step 4: Verify original dialogue wording is preserved (no rewriting)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ai",
+    "description": "Default mode handles multiple participants — each person's dialogue formatted individually by topic",
+    "steps": [
+      "Step 1: POST to /api/generate with subtitle text containing 3+ speakers across multiple topics, no rule field",
+      "Step 2: Verify each speaker's content is formatted with their name prefix",
+      "Step 3: Verify dialogue is organized by topic under ## chapter headings",
+      "Step 4: Verify all participants are represented in the output"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ai",
+    "description": "Default mode preserves original wording — dialogue and narration are not rewritten or summarized",
+    "steps": [
+      "Step 1: POST to /api/generate with subtitle text, no rule field",
+      "Step 2: Verify output text matches original subtitle wording verbatim",
+      "Step 3: Verify chapters are added but content is not paraphrased",
+      "Step 4: Verify no AI-generated commentary or analysis is inserted"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ai",
+    "description": "Default mode dialogue format example is included in prompt to guide AI output format",
+    "steps": [
+      "Step 1: Check prompts.ts buildArticlePrompt and buildArticleMessages",
+      "Step 2: Verify default mode includes dialogue format example with Jen/Mark/Sarah",
+      "Step 3: Verify example shows speaker prefix format and multi-line dialogue",
+      "Step 4: Verify example appears in both Gemini (plain text) and DeepSeek (chat messages) prompts"
+    ],
+    "passes": true
+  },
+  {
+    "category": "ai",
+    "description": "Default mode translates non-Chinese subtitles to Chinese; Chinese subtitles are kept as-is",
+    "steps": [
+      "Step 1: POST to /api/generate with English subtitle text, no rule field",
+      "Step 2: Verify the output is in Chinese",
+      "Step 3: Verify the original meaning is preserved in translation",
+      "Step 4: POST to /api/generate with Chinese subtitle text, no rule field",
+      "Step 5: Verify Chinese output is preserved verbatim (no redundant translation)"
+    ],
+    "passes": false
   }
 ]

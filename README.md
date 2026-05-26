@@ -35,7 +35,220 @@ npx wrangler dev --port 34997    # http://localhost:34997
 
 ---
 
-## 核心流程
+## High-Level Design
+
+### System Architecture
+
+```
+ +-----------------------------------------------+
+ |                  Browser                       |
+ |  +-------------+  +--------+  +-------------+  |
+ |  | DOM + Events|  |SSE Cli.|  |Markdown Prs.|  |
+ |  +------+------+  +---+----+  +------+------+  |
+ +---------+--------------+--------------+--------+
+           |              |              |
+           |     fetch + SSE stream       |
+           +--------------+--------------+
+                           |
+ +-------------------------+--------------------------+
+ |                  Cloudflare Worker                   |
+ |                                                      |
+ |  +----------+   +----------+   +----------+          |
+ |  |  Router  |   | YouTube  |   |  Prompt  |          |
+ |  | 3 routes |-->| Module   |   | Templates|          |
+ |  +----+-----+   +----+-----+   +----+-----+          |
+ |       |               |              ^               |
+ |       |      provider |         +----+----+          |
+ |  +----+-----+    +-----+----+    | Gemini  |          |
+ |  | Session  |    | DeepSeek +--->| Client  |          |
+ |  | KV R/W   |    | Client   |    +----+----+          |
+ |  +----+-----+    +----------+         |               |
+ +-------+-------------------------------+---------------+
+         |                               |
+         |    put / get                   |  API calls
+         v                               v
+ +------------------+    +-----------------------------+
+ |   Cloudflare KV  |    |      External Services      |
+ | session:{uuid}   |    |                             |
+ |    TTL 1h        |    |  YouTube Innertube API      |
+ +------------------+    |  Webshare TCP Proxy         |
+                         |  Gemini API (2.5-flash)     |
+                         |  DeepSeek API (v4-flash)    |
+                         +-----------------------------+
+```
+
+### Request Flow
+
+```text
+                          User
+                           |
+          +----------------+----------------+
+          |                                 |
+     Enter URL                        Optional rule
+          |                                 |
+          +----------------+----------------+
+                           |
+                    Frontend (app.js)
+                           |
+              +------------+-------------+
+              |                          |
+       GET /public/*              POST /api/generate
+       static assets              { youtubeUrl, rule? }
+              |                          |
+              |                   Router (router.ts)
+              |                          |
+              |              +-----------+-----------+
+              |              |                       |
+              |        extractVideoId          generateUUID
+              |              |
+              |   fetchSubtitlesWithFallback
+              |   (3-level fallback chain)
+              |              |
+              |           rule?
+              |         /        \
+              |     empty       provided
+              |       |             |
+              |  preserve mode  transform mode
+              |  (字幕排版员)   (内容编辑+rule注入)
+              |       |             |
+              |       +------+------+
+              |              |
+              |   AI streamArticle()
+              |   returns ReadableStream
+              |              |
+              |    TransformStream pipe
+              |              |
+              |   SSE data chunks + X-Session-Id header
+              |              |
+              |   +----------+-----------+
+              |   |                      |
+              |   v                      v
+              |  streaming          background:
+              |  incremental        join textParts
+              |  markdown parser    extractChapters
+              |   |                 saveSession(KV)
+              |   |
+              |  h1 / h2 / p
+              |  animate-in
+              |   |
+              |  5W1H buttons injected
+              +---+---------------------+
+                  |                     |
+             streaming render    POST /api/5w1h
+                                 { sessionId, chapter }
+                                       |
+                                  getSession(KV)
+                                  generate5W1H(chapter, fullText)
+                                  return JSON {who,...,how}
+                                       |
+                                  collapsible summary box
+```
+
+### Subtitle Fallback Chain
+
+```text
+fetchSubtitlesWithFallback(videoId, env)
+  |
+  +--[1]-- fetchSubtitles()
+  |          Innertube.create -> getInfo -> getTranscript
+  |          or caption_tracks XML fallback
+  |          |
+  |          +-- success --> clean subtitle text
+  |          +-- timeout/error --> [2]
+  |
+  +--[2]-- fetchSubtitlesWithProxy()
+  |          cloudflare:sockets connect -> CONNECT tunnel -> TLS
+  |          -> timedtext API
+  |          |
+  |          +-- success --> clean subtitle text
+  |          +-- CONNECT failed --> [3]
+  |
+  +--[3]-- fetchFallbackSubtitles()
+             returns DEMO_SUBTITLE (sync)
+             imported from fallback-subtitles/demo
+             |
+             +-- clean subtitle text
+```
+
+### Generation Mode
+
+```text
+              subtitle text
+                   |
+              rule provided?
+              /            \
+           no               yes
+           |                 |
+    +------v------+    +----v-----------+
+    | Preserve Mode|    | Transform Mode |
+    +-------------+    +----------------+
+    | prompt:      |    | prompt:        |
+    | 字幕排版员   |    | 内容编辑       |
+    |              |    |                |
+    | 核心原则:    |    | 严格遵循       |
+    | 不增删改内容 |    | 用户要求       |
+    | 只在主题转换 |    |                |
+    | 处插入标题   |    | rule 注入到    |
+    | 非中文先翻译 |    | prompt 中      |
+    | 再排版       |    |                |
+    +------+-------+    +-------+--------+
+           |                    |
+           +-------+------------+
+                   |
+      streamArticle -> ReadableStream -> SSE
+```
+
+### Frontend Data Flow
+
+```text
+User clicks "开始生成"
+  |
+validateUrl()
+  +-- invalid --> show inline error
+  +-- valid
+       |
+  POST /api/generate?provider=   { youtubeUrl, rule? }
+       |
+  reader.read() loop
+  split SSE buffer by \n\n
+       |
+  +----+----+----+
+  |    |    |    |
+[DONE] ERROR ""  text
+  |    |    |    |
+  |    |    |    +-> appendTextContent(text)
+  |    |    |          |
+  |    |    |     pending += text
+  |    |    |     split by last \n into complete + pending
+  |    |    |         |
+  |    |    |    +----+----+----+
+  |    |    |    |    |    |    |
+  |    |    |  "# " "## " line partial
+  |    |    |    |    |    |
+  |    |    |   h1   h2    p   keep in
+  |    |    |  (+title)(+track) pending
+  |    |    |
+  |    |    +-> appendTextContent("\n")
+  |    |
+  |    +-> throw error to UI
+  |
+  +-> flushPartialLine()
+      render pending if any
+      onStreamComplete()
+        |
+        +-> inject5W1HButton() for each h2
+        +-> store sessionId from X-Session-Id
+              |
+         [user clicks 5W1H]
+              |
+         POST /api/5w1h?provider=
+         { sessionId, chapter }
+              |
+         render summary box:
+         who / what / when / where / why / how
+```
+
+---
 
 ### 1. YouTube 字幕获取与处理
 

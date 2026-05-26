@@ -99,6 +99,11 @@ body {
 }
 
 .url-input:focus,
+.rules-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
 .provider-select {
   width: 100%;
   padding: 10px 14px;
@@ -116,11 +121,6 @@ body {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.rules-textarea:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 
 .url-input::placeholder,
@@ -146,6 +146,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   width: 100%;
   padding: 12px 24px;
   font-family: var(--font-stack);
@@ -176,17 +177,18 @@ body {
 /* ===== 5W1H Button ===== */
 .btn-5w1h {
   display: inline-block;
-  padding: 4px 12px;
+  padding: 0 10px;
   font-family: var(--font-stack);
-  font-size: 0.8rem;
+  font-size: inherit;
   font-weight: 600;
-  line-height: 1.5;
+  line-height: inherit;
   color: var(--primary);
   background-color: transparent;
   border: 1px solid var(--primary);
   border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
+  vertical-align: baseline;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
@@ -254,22 +256,24 @@ body {
   line-height: 1.4;
 }
 
-/* ===== Chapter Block ===== */
-.chapter-block {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 20px;
-  margin-bottom: 16px;
+/* ===== Chapter Heading (h2, minimal) ===== */
+.chapter-heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.5;
+  margin: 28px 0 12px;
 }
 
-.chapter-header {
+/* ===== Chapter Heading Row (h2 + 5W1H button inline) ===== */
+.chapter-heading-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 12px;
-  margin-bottom: 12px;
+  margin: 28px 0 12px;
 }
 
-.chapter-header h2 {
+.chapter-heading-row h2 {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text);
@@ -277,16 +281,44 @@ body {
   margin: 0;
 }
 
-/* ===== Paragraphs inside chapters ===== */
-.chapter-block p {
+/* ===== Paragraphs ===== */
+.result-section p {
   margin-bottom: 8px;
   font-size: 1rem;
   line-height: 1.8;
   color: var(--text);
 }
 
-.chapter-block p:last-of-type {
-  margin-bottom: 0;
+/* ===== Markdown Rendering Output ===== */
+
+.result-section h1 {
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 24px;
+  line-height: 1.4;
+}
+
+.result-section h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.5;
+  margin: 28px 0 12px;
+}
+
+.result-section strong {
+  font-weight: 600;
+}
+
+.result-section em {
+  font-style: italic;
+}
+
+.result-section hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
 }
 
 /* ===== Summary Box ===== */
@@ -366,26 +398,24 @@ body {
     font-size: 1.4rem;
   }
 
-  .chapter-block {
-    padding: 12px 14px;
-  }
-
-  .chapter-header {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .chapter-header h2 {
+  .chapter-heading {
     font-size: 1.1rem;
   }
 
   .btn-5w1h {
-    font-size: 0.75rem;
-    padding: 3px 10px;
+    padding: 0 8px;
   }
 
   .article-title {
     font-size: 1.35rem;
+  }
+
+  .result-section h1 {
+    font-size: 1.35rem;
+  }
+
+  .result-section h2 {
+    font-size: 1.1rem;
   }
 }
 
@@ -418,10 +448,6 @@ body {
   .container {
     padding: 32px 24px 64px;
   }
-
-  .chapter-block {
-    padding: 20px 24px;
-  }
 }
 
 /* ===== Streaming Animations ===== */
@@ -439,6 +465,23 @@ body {
 
 .animate-in {
   animation: fadeInUp 0.4s ease-out both;
+}
+
+/* Word-level streaming animation */
+.stream-word {
+  display: inline-block;
+  animation: wordAppear 0.35s ease-out both;
+}
+
+@keyframes wordAppear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Blinking cursor during streaming */

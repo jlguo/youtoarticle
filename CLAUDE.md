@@ -2,16 +2,15 @@
 
 ## Project
 
-Cloudflare Worker web app — users input a YouTube link, the app extracts subtitles, streams an AI-generated Chinese article in real-time via SSE, and provides per-chapter 5W1H (Who/What/When/Where/Why/How) summaries.
+Cloudflare Worker web app — users input a YouTube link, the Worker extracts subtitles and returns them as JSON. The browser then calls AI APIs directly (unlimited CPU) for article generation.
 
 ## Architecture
 
-- **Backend**: TypeScript on Cloudflare Workers, modular (`router.ts`, `youtube.ts`, `gemini.ts`, `session.ts`, `prompts.ts`)
-- **YouTube**: `youtubei.js` direct → Webshare TCP Socket proxy → `src/fallback-subtitles/` hard-coded fallback
-- **AI**: Gemini via `generateContentStream()` (SSE) and `generateContent()` (5W1H JSON)
-- **Storage**: Cloudflare KV, key `session:{uuid}`, TTL 3600s
-- **Frontend**: Vanilla JS + CSS, esbuild-bundled into `public/`, SSE streaming DOM rendering
-- **Chapter detection**: Frontend parses `##` headings, injects [5W1H] buttons; server retrieves context from KV (no client re-transmission)
+- **Backend**: TypeScript on Cloudflare Workers, modular (`router.ts`, `youtube.ts`, `config.ts`)
+- **YouTube**: `youtubei.js` direct → timedtext API → `src/fallback-subtitles/` hard-coded fallback
+- **AI**: Browser-side — calls Gemini/DeepSeek APIs directly from the frontend
+- **Storage**: Cloudflare KV, used for subtitle caching (`sub:{videoId}`, TTL 7 days)
+- **Frontend**: Vanilla JS + CSS, esbuild-bundled into `public/`
 
 ## Commands
 
@@ -19,7 +18,18 @@ Cloudflare Worker web app — users input a YouTube link, the app extracts subti
 node build.mjs              # Bundle frontend
 npx wrangler dev --port 34997  # Local dev
 npx wrangler deploy          # Deploy
+bash smoke_test.sh           # Run smoke test (build + start + API checks)
 ```
+
+## API
+
+### POST /api/generate
+
+Extracts YouTube subtitles as JSON.
+
+**Request:** `{ "youtubeUrl": "https://youtu.be/xRh2sVcNXQ8" }`
+
+**Response (200):** `{ "subtitle": "...", "videoId": "xRh2sVcNXQ8", "fromFallback": false }`
 
 ## Design Tokens
 
@@ -34,68 +44,27 @@ Read `app_spec.xml` to understand the full requirements, then:
 
 1. **Create `feature_list.json`** — 50+ test cases across these categories:
    - `infrastructure` — project boots, configs valid, wrangler dev starts
-   - `subtitle` — URL parsing, youtubei.js, proxy fallback, hard-coded fallback, language chain
-   - `gemini` — streaming generation, 5W1H generation, prompt rule injection, error handling
-   - `session` — KV write/read, TTL expiry, schema correctness
-   - `api` — POST /api/generate (SSE), POST /api/5w1h (JSON), static asset serving, CORS
+   - `subtitle` — URL parsing, youtubei.js, fallback, hard-coded fallback, language chain
+   - `api` — POST /api/generate (JSON), static asset serving, CORS
    - `frontend` — form rendering, SSE client, typewriter DOM, chapter detection, 5W1H buttons, collapsible boxes
    - `style` — design tokens, typography, button states, responsive layout, transitions
    - `e2e` — full flow with demo video, custom rules, KV persistence across refresh, error cases
 
    Format: `{ "category": "...", "description": "...", "steps": ["Step 1: ...", ...], "passes": false }`
-   All tests start as `"passes": false`. **Never delete/edit/reorder tests** — only toggle `passes` to `true` **after** the feature has been verified with actual tool output (curl HTTP response, browser screenshot, or test runner output). Do NOT toggle `passes` based on "the code looks right" or "should work." Every `passes: true` toggle must be backed by concrete verification evidence produced in that same turn.
+   All tests start as `"passes": false`. **Never delete/edit/reorder tests** — only toggle `passes` to `true` **after** the feature has been verified with actual tool output (curl HTTP response, browser screenshot, or test runner output). Do NOT toggle `passes` based on "the code looks right" or "should work." Every `passes: true` toggle MUST reference the verifiable tool output in the session logs.
 
-2. **Scaffold the project skeleton:**
-   - `package.json` — `type: "module"`, deps: `youtubei.js` + Gemini SDK, devDeps: `wrangler`, `esbuild`, `typescript`, `@cloudflare/workers-types`
-   - `tsconfig.json` — `module: "ESNext"`, `moduleResolution: "bundler"`, `strict: true`, `types: ["@cloudflare/workers-types"]`
-   - `wrangler.toml` — `compatibility_flags = ["nodejs_compat"]`, `main = "src/backend/index.ts"`, KV binding with placeholder IDs
-   - `build.mjs` — esbuild: `src/frontend/app.js` → `public/`, `bundle: true`, `format: "esm"`
-   - `.dev.vars` — `GEMINI_API_KEY=`, `WEBSHARE_PROXY_HOST=`, `WEBSHARE_PROXY_PORT=` placeholders
-   - `.gitignore` — `node_modules/`, `public/`, `.dev.vars`, `.wrangler/`
-   - `src/backend/` — placeholder files: `index.ts`, `router.ts`, `youtube.ts`, `gemini.ts`, `session.ts`, `prompts.ts`
-   - `src/frontend/` — placeholder files: `app.js`, `app.css`
-   - `src/fallback-subtitles/demo.txt` — hard-coded subtitle sample for video `xRh2sVcNXQ8`
+### Phase 2: Feature Development (one session per feature)
 
-3. **Verify the skeleton works:**
+1. Pick a single feature from `feature_list.json` (one that is `passes: false`)
+2. Implement it
+3. Verify it with a concrete tool (curl, wrangler, browser)
+4. If it passes, toggle `passes` to `true`
+5. Commit the implementation + `feature_list.json` together
+6. Move to the next feature
 
-   ```bash
-   npm install && node build.mjs && npx wrangler dev --port 34997
-   ```
+### Validation Rules
 
-   Then `curl -s -w "\nHTTP:%{http_code}\n" http://localhost:34997/` should return 200.
-
-4. **Create `claude-progress.txt`** with initial state (0/XX tests passing).
-
-5. **Git init + first commit** with all scaffolding files.
-
-### Phase 2: Feature Implementation Loop (main session orchestrates)
-
-For each feature in `feature_list.json` with `"passes": false` (in priority order):
-
-1. **Kill any stale dev server:** `fuser -k 34997/tcp 2>/dev/null`
-2. **Start fresh dev server:** `node build.mjs && npx wrangler dev --port 34997`
-3. **Spawn the implementation subagent:**
-
-   ```text
-   Agent(subagent_type="fullstack-builder", description="Implement feature #X",
-     prompt="Implement this feature from feature_list.json:
-     [paste the feature entry: category, description, steps]
-     ...")
-   ```
-
-4. **Review the subagent's changes** — read the diff, then independently verify each step in the feature entry using the Testing Strategy below (curl for API, Playwright for UI). Do NOT toggle `passes` to `true` unless every step was verified with concrete output.
-5. **Commit** the feature with a descriptive message referencing the feature ID.
-6. **Update `claude-progress.txt`** with new completion count.
-7. Repeat until all features pass.
-
-### Testing Strategy
-
-- **API/backend features**: curl commands (pre-approved in settings.local.json) — verify HTTP codes, headers (`X-Session-Id`, `Content-Type`), SSE `data:` format, JSON structure
-- **UI/frontend features**: Playwright for browser automation — navigate, click, type, screenshot, verify DOM state, check console errors. Verify design tokens, interactivity (button states, typewriter effect, collapsible boxes), and responsive layout
-
-## Anti-patterns (never do these)
-
-- Never batch-toggle multiple `passes` fields at once — verify and toggle one feature at a time
-- Never mark a test passing because "the code is written" — only passing when verified with tool output
-- Never toggle frontend/style/e2e tests without browser/Playwright verification
-- If a feature can't be fully verified (e.g., proxy requires Cloudflare network), leave it `false`
+- `npx tsc --noEmit` must pass after every code change
+- `node build.mjs` must produce no errors
+- After API changes: run `bash smoke_test.sh`
+- After UI changes: validate in browser with Playwright

@@ -2,7 +2,7 @@
   <project_name>YouTube Subtitle to AI Article Converter - MVP</project_name>
 
   <overview>
-    This project builds a web application deployed on Cloudflare Worker. Users input a YouTube video link with subtitles, and AI converts the video content into a well-structured Chinese article with a single click. It supports real-time streaming generation, custom generation rules, and chapter-level 5W1H structured summaries. The core product goal is to validate the "video content → structured article" automation workflow, providing content creators and learners with an efficient information organization tool.
+    This project builds a web application deployed on Cloudflare Worker. Users input a YouTube video link with subtitles, and the app organizes the subtitle content into well-structured chapters. By default, the original subtitle content is preserved verbatim — only chapter splitting is applied. When users provide custom generation rules, AI transforms the content per those rules. The app supports real-time streaming generation and chapter-level 5W1H structured summaries. The core product goal is to validate the "video content → structured article" automation workflow, providing content creators and learners with an efficient information organization tool.
   </overview>
 
   <technology_stack>
@@ -45,8 +45,8 @@
       </providers>
       <selection_logic>Query-parameter routing: GET/POST ?provider=deepseek → DeepSeek (requires DEEPSEEK_API_KEY secret); otherwise → Gemini (default). Frontend provides a &lt;select&gt; model picker that appends the parameter to fetch URLs. Falls back to Gemini for unknown provider values.</selection_logic>
       <streaming>SSE streaming with sentence-level batching. Tokens are accumulated server-side until a sentence-ending character (。！？\n) or 40-char threshold, then flushed as a single SSE message. Reduces SSE message count from ~1000 to ~50-100 per article. Frontend renders with fadeInUp animation and blinking cursor during streaming.</streaming>
-      <prompt_engineering>Dual-format prompt templates in src/backend/prompts.ts: plain text for Gemini (buildArticlePrompt / build5W1HPrompt) and chat messages for DeepSeek (buildArticleMessages / build5W1HMessages). Same generation rules, different transport format.</prompt_engineering>
-      <response_format>Article text in Markdown + 5W1H structured JSON</response_format>
+      <prompt_engineering>Dual-format prompt templates: plain text for Gemini, chat messages for DeepSeek. Two generation modes: (1) chapter-only splitting — subtitle is split into chapters with original wording preserved, no rewriting; (2) rule-driven generation — article is generated strictly following user-provided rules. Default output language is Chinese. If the user specifies a language preference in custom rules, that takes precedence. Same requirements, different transport format per provider.</prompt_engineering>
+      <response_format>Article text in Markdown (preserved or AI-generated), defaulting to Chinese; plus 5W1H structured JSON</response_format>
       <error_handling>Graceful failure with fallback content; provider-specific error messages (DeepSeek/Gemini distinguished in error output)</error_handling>
     </ai_module>
 
@@ -84,21 +84,34 @@
       - Automatically switches to Webshare TCP Socket proxy mode on captcha / anti-bot trigger
       - Falls back to built-in hard-coded subtitles from src/fallback-subtitles/ when all else fails
       - Automatically strips subtitle timestamps and irrelevant markers, outputting clean plain text
+      - Extracted subtitles are the precondition for chapter detection (/api/chapters) and article generation (/api/generate)
     </subtitle_extraction>
 
-    <!-- 2. AI Streaming Article Generation Module -->
+    <!-- 2. AI Content Processing Module (Dual-Mode) -->
     <article_generation>
-      - Streaming text generation via AI provider (Gemini by default, DeepSeek via ?provider=deepseek)
-      - Gemini: generateContentStream() API; DeepSeek: chat completions with stream: true
-      - Sentence-level SSE batching: tokens accumulate until 。！？\n or 40-char threshold, then flush
-      - Frontend renders with fadeInUp CSS animation (opacity + translateY, 0.4s ease-out) on new paragraphs/chapters
-      - Blinking cursor element appears during streaming, auto-removed on completion
-      - Auto-detects Markdown headings (##) for chapter division
-      - Preserves conversational tone while optimizing for readable article layout
-      - Supports optional natural-language generation rules (taskType, style, audience, constraint) sent as `rule: string` in the request body
-      - Frontend model selector: &lt;select&gt; with Gemini 2.5 Flash (default) / DeepSeek V4 Flash
+      - Two generation modes based on whether custom rules are provided:
+      - Default mode (no custom rules): Original subtitle content is preserved verbatim. The system detects topic boundaries and organizes text into chapters without modifying any wording. Output is in Chinese unless subtitles are in another language.
+      - Default dialogue formatting: When subtitles contain conversation or interview content, the default mode automatically merges same-topic exchanges into a single chapter and formats each speaker's lines with their name prefix (e.g., "Jen:", "Mark:"). Each speaker turn is rendered on its own line within the chapter. If multiple participants join the discussion, their content is organized by topic and formatted individually with name prefixes.
+      - Custom rule mode (rules provided): The system generates a new article strictly following user requirements such as task type, style, target audience, language, and constraints.
+      - Both modes default to Chinese output; the user can specify a different output language via custom rules
+      - Both modes support real-time streaming text generation via the selected AI provider
+      - Sentence-level batching: output is accumulated until a natural sentence break or reasonable length threshold, then flushed
+      - Frontend renders new content with a smooth fade-in animation as it arrives
+      - A blinking cursor indicator appears during streaming and is automatically removed on completion
+      - Markdown headings are auto-detected for chapter division
+      - Frontend model selector for choosing between available AI providers
       - Shows loading state during generation; provides friendly degradation on failure
     </article_generation>
+
+    <!-- 2.5. Chapter Detection Module (Inline) -->
+    <chapter_detection>
+      - Chapters are detected automatically from ## Markdown headings in the generated article text as it streams
+      - The backend extracts chapter titles from ## headings and stores them in the session for 5W1H queries
+      - Chapter titles are normalized: ## prefix and leading/trailing whitespace stripped before storage and matching
+      - Frontend renders each ## heading as an h2 element with natural line breaks (no border boxes)
+      - After article generation completes, 5W1H action buttons are injected next to each chapter heading
+      - Only content from user-selected chapters is included in the final output when selectedChapters is specified
+    </chapter_detection>
 
     <!-- 3. Chapter-Level 5W1H Summary Module -->
     <chapter_summary>
@@ -114,7 +127,7 @@
     <!-- 4. User Interaction & Frontend Experience Module -->
     <ui_interaction>
       - Clean single-page layout divided into input area and result display area
-      - Input area: YouTube link field (required) + custom rules text field (optional) + Generate button
+      - Input area: YouTube link field (required), custom rules text field (optional), model selector, and "生成文章" (Generate Article) button
       - Generate button auto-disabled during requests to prevent duplicate submissions
       - Article content with automatic word wrapping and reading optimization, responsive to screen widths
       - Chapter headings clearly distinguished from body text with scroll anchoring
@@ -130,6 +143,21 @@
       - KV session caches auto-expire after 1 hour to prevent storage bloat
       - After generation completes, session context persists in KV — 5W1H queries work across page refreshes for up to 1 hour
     </error_handling>
+
+    <!-- 6. Smoke Test Module -->
+    <smoke_test>
+      - A smoke test must be run after every code change to verify core functionality is intact before proceeding
+      - The smoke test is a single automated script that covers the critical path end-to-end
+      - Smoke test steps:
+      - 1. Build frontend assets and start the dev server
+      - 2. Verify the HTML page and static assets are served correctly
+      - 3. Verify chapter detection works with the demo video and returns a valid chapter list
+      - 4. Verify default-mode article generation produces streaming output with chapter headings
+      - 5. Verify a 5W1H summary can be queried for a chapter and returns all six fields
+      - 6. Verify error handling: invalid URL returns a clear error, missing parameters return 4xx
+      - If any step fails, the change must be fixed before continuing to the next feature
+      - The smoke test uses the hard-coded subtitle fallback to avoid dependency on external services
+    </smoke_test>
   </core_features>
 
   <database_schema>
@@ -156,8 +184,9 @@
       - GET /public/* — Serves bundled static assets (JS, CSS)
     </pages>
     <api>
-      - POST /api/generate — { youtubeUrl, rule? } → SSE stream of article text, X-Session-Id header
-      - POST /api/5w1h — { sessionId, chapter } → JSON { who, what, when, where, why, how }
+      - POST /api/chapters — Accepts a YouTube URL, returns detected chapter list with titles and brief summaries
+      - POST /api/generate — Accepts YouTube URL, selected chapter indices, and optional custom rules; returns SSE stream of article text with a session ID header
+      - POST /api/5w1h — Accepts session ID and chapter title; returns structured Who/What/When/Where/Why/How summary as JSON
     </api>
   </api_endpoints_summary>
 
@@ -165,11 +194,14 @@
     <section name="Input Area">
       <element>YouTube video URL input field (required, with URL format validation)</element>
       <element>Custom generation rules text field (optional, natural language: task type, style, audience, constraints)</element>
-      <element>"Start Generation" button (triggers /api/generate, disabled during active generation)</element>
+      <element>AI model selector dropdown (Gemini 2.5 Flash default, DeepSeek V4 Flash)</element>
+      <element>"生成文章" (Generate Article) button (extracts subtitles + generates article in one click)</element>
     </section>
     <section name="Result Display Area">
+      <element>Loading indicator with spinner shown during generation</element>
       <element>Streaming article rendering area with Markdown heading (# for title, ## for chapters) and paragraph formatting</element>
-      <element>"5W1H" button next to each chapter heading (## level)</element>
+      <element>Chapters rendered as h2 headings with natural line breaks, no border boxes</element>
+      <element>"5W1H" button injected next to each chapter heading after article completion</element>
       <element>Collapsible structured summary box per chapter — expands on click, shows Who/What/When/Where/Why/How</element>
     </section>
   </ui_layout>
@@ -196,30 +228,38 @@
 
   <key_interactions>
     <interaction>
-      <trigger>User enters a YouTube link and clicks "Start Generation"</trigger>
+      <trigger>User enters a YouTube link, optionally enters custom rules, and clicks "生成文章"</trigger>
       <flow>
-        <step>1. Frontend POSTs to /api/generate with { youtubeUrl, rule? }</step>
-        <step>2. Server extracts video ID, fetches subtitles: youtubei.js direct → Webshare TCP proxy → src/fallback-subtitles/</step>
-        <step>3. Server builds Gemini prompt (with optional rule constraints), calls generateContentStream()</step>
-        <step>4. Server generates a session UUID and sets X-Session-Id in the initial response headers before streaming begins</step>
-        <step>5. Server forwards each Gemini chunk to frontend via SSE; simultaneously accumulates full text for KV storage</step>
-        <step>6. On stream end, server saves { fullText, chapters[], subtitle } to KV under session:{uuid}</step>
-        <step>7. Frontend renders each chunk in real-time, parsing Markdown to detect chapters and inject 5W1H buttons</step>
+        <step>1. Frontend validates the YouTube URL format inline; shows error on invalid input</step>
+        <step>2. Frontend sends the YouTube URL and optional custom rules to the server</step>
+        <step>3. Server extracts the video ID and fetches subtitles through the fallback chain (direct, proxy, hard-coded)</step>
+        <step>4. Server determines the mode: if no custom rules, preserve original text and only split into chapters; if rules are provided, generate new content following those rules</step>
+        <step>5. Server creates a session and begins streaming the processed content back to the frontend via SSE</step>
+        <step>6. Frontend renders article content in real-time: title (h1), chapter headings (h2), and paragraphs</step>
+        <step>7. When streaming completes, server saves the full article, chapter list, and original subtitle to KV; frontend injects 5W1H buttons next to each chapter heading</step>
       </flow>
     </interaction>
     <interaction>
       <trigger>User clicks the "5W1H" button next to a chapter heading</trigger>
       <flow>
-        <step>1. Frontend POSTs to /api/5w1h with { sessionId, chapter }</step>
-        <step>2. Server reads session context from KV (key: session:{sessionId})</step>
-        <step>3. Server calls Gemini with chapter title + full article context to generate 5W1H JSON</step>
-        <step>4. Server returns { who, what, when, where, why, how } as JSON</step>
-        <step>5. Frontend renders the structured summary in the collapsible box below the chapter</step>
+        <step>1. Frontend sends the session ID and chapter title to the server</step>
+        <step>2. Server retrieves the full article context from the session store</step>
+        <step>3. Server generates a structured Who/What/When/Where/Why/How summary for the chapter using the full article as context</step>
+        <step>4. Server returns the structured summary as JSON</step>
+        <step>5. Frontend renders the summary in a collapsible box below the chapter</step>
       </flow>
     </interaction>
   </key_interactions>
 
   <implementation_steps>
+    <step number="0">
+      <title>Smoke Test (Run After Every Change)</title>
+      <tasks>
+        - The smoke test must pass after every code change before proceeding to the next feature
+        - Covers: build and dev server startup, static asset serving, chapter detection, default-mode generation, 5W1H summary, and error handling
+        - Uses hard-coded subtitle fallback to ensure fast and reliable execution without external dependencies
+      </tasks>
+    </step>
     <step number="1">
       <title>Project Initialization &amp; Foundation</title>
       <tasks>
@@ -244,19 +284,19 @@
       </tasks>
     </step>
     <step number="3">
-      <title>AI Module &amp; Prompt Templates (Gemini + DeepSeek)</title>
+      <title>AI Module &amp; Prompt Templates (Dual Provider, Dual Mode)</title>
       <tasks>
-        - Implement src/backend/gemini.ts — Gemini API client for gemini-2.5-flash (default production provider)
-        - Implement src/backend/deepseek.ts — DeepSeek API client for deepseek-v4-flash (1M context)
-        - Both modules expose the same interface: streamArticle() and generate5W1H()
-        - Implement Gemini: generateContentStream() for streaming, generateContent() for 5W1H JSON
-        - Implement DeepSeek: chat completions with stream: true for streaming, sentence-level batching
-        - Create src/backend/prompts.ts with dual-format templates: plain text for Gemini, chat messages for DeepSeek
-        - Add optional rule constraint injection (taskType, style, audience, constraint) into prompts
-        - Create 5W1H summarization prompt template using chapter context + full article
-        - Add ?provider= query-param routing: default Gemini, ?provider=deepseek activates DeepSeek
-        - Frontend model selector: &lt;select&gt; with Gemini 2.5 Flash / DeepSeek V4 Flash
-        - Add error handling with graceful fallback messages on API failure
+        - Implement Gemini API client as the default provider
+        - Implement DeepSeek API client as an optional secondary provider with larger context window
+        - Both providers expose the same capabilities: streaming article generation, structured 5W1H summary, and chapter detection
+        - Create dual-format prompt templates supporting both providers' input formats
+        - Implement two generation modes: chapter-only splitting (preserve original wording, add headings) when no custom rules; rule-driven generation when rules are provided
+        - Build chapter detection prompts that split subtitle text into logical topic segments with titles and summaries
+        - Support optional custom rule injection (task type, style, target audience, constraints) into generation prompts
+        - Build 5W1H summarization prompt templates using chapter title plus full article context
+        - Provider selection via URL parameter, defaulting to Gemini with DeepSeek as opt-in
+        - Frontend model selector for switching between available providers
+        - Graceful error handling with user-friendly messages on API failure
       </tasks>
     </step>
     <step number="4">
@@ -269,37 +309,42 @@
       </tasks>
     </step>
     <step number="5">
-      <title>Worker Router &amp; SSE Streaming Endpoints</title>
+      <title>Worker Router &amp; API Endpoints</title>
       <tasks>
-        - Implement src/backend/router.ts — route GET / to serve HTML page
-        - Serve bundled static assets from public/ at /public/*
-        - Implement POST /api/generate: subtitle extraction → Gemini streaming → SSE response with X-Session-Id
-        - Implement POST /api/5w1h: KV context lookup → Gemini 5W1H generation → JSON response
-        - Create src/backend/index.ts entry point wiring router + fetch handler
+        - Implement request router: serve the HTML page at the root path and static assets from the public directory
+        - Implement chapter detection endpoint: subtitle extraction followed by AI chapter boundary detection, returning chapter list with titles and summaries
+        - Implement article generation endpoint: route to chapter-only splitting (no rule) or full generation (rule provided) based on request; return streaming response with session ID header
+        - Filter content to only include user-selected chapters during generation
+        - Implement 5W1H summary endpoint: retrieve session context, generate structured summary, return as JSON
+        - Create the main entry point wiring the router and fetch handler
         - Handle CORS headers for cross-origin requests
       </tasks>
     </step>
     <step number="6">
-      <title>Frontend: UI, SSE Client &amp; Markdown Rendering</title>
+      <title>Frontend: UI, Streaming Client &amp; Markdown Rendering</title>
       <tasks>
-        - Create HTML page with input area (YouTube URL field + custom rules text field + Generate button)
-        - Implement CSS with design system tokens: colors (#2563eb, #ffffff, #111827, #e5e7eb), typography, responsive layout
-        - Implement SSE client in vanilla JS — connect to /api/generate, read stream, append chunks to DOM
-        - Implement lightweight regex Markdown parser to detect # title, ## chapters, and paragraphs
-        - Inject [5W1H] buttons next to each ## chapter heading during streaming
-        - Implement 5W1H collapsible summary boxes — POST /api/5w1h then render Who/What/When/Where/Why/How
-        - Disable Generate button during active generation; show loading states
-        - Validate YouTube URL format on input; show inline error feedback
+        - Build HTML page with input area: YouTube URL field, custom rules textarea (optional), model selector, and single "生成文章" button
+        - Apply design system tokens consistently: primary blue for buttons, white background, dark text, light borders
+        - Typography: system sans-serif font at readable base size with comfortable line height
+        - Implement streaming client that connects to the generation endpoint and appends content to the page in real-time
+        - Build lightweight Markdown parser to detect title, chapter headings, and paragraph structure
+        - Render chapters as h2 headings with natural line breaks — no bordered chapter boxes
+        - After streaming completes, inject 5W1H buttons next to each chapter heading
+        - Build collapsible summary boxes that expand on click and show structured Who/What/When/Where/Why/How
+        - Disable the generate button during active generation; show loading spinner and blinking cursor during streaming
+        - Validate YouTube URL format on input with instant inline feedback
       </tasks>
     </step>
     <step number="7">
       <title>Integration Testing &amp; End-to-End Validation</title>
       <tasks>
-        - Test with demo video (xRh2sVcNXQ8): subtitle extraction → streaming article → chapter rendering
-        - Test custom generation rules: verify AI output reflects taskType, style, audience, constraint
-        - Test 5W1H summaries: verify correct structured JSON; verify no client re-transmission of article
-        - Test fallback chain: simulate direct fetch failure → proxy retry → hard-coded fallback
-        - Test error cases: invalid URL, missing subtitles, API key errors, KV unavailability
+        - Test with demo video (xRh2sVcNXQ8): subtitle extraction, chapter detection, streaming output, chapter rendering
+        - Test default mode (no rules): verify original wording is kept, only chapter headings are added
+        - Test custom rule mode: verify the system rewrites content following user requirements
+        - Test custom generation rules: verify output reflects task type, style, audience, and constraints
+        - Test 5W1H summaries: verify correct structured output and no client re-transmission of full article
+        - Test fallback chain: simulate direct fetch failure, proxy retry, hard-coded fallback
+        - Test error cases: invalid URL, missing subtitles, API key errors, session store unavailability
         - Verify responsive layout on mobile and desktop viewports
       </tasks>
     </step>
@@ -320,37 +365,46 @@
     <functionality>
       - YouTube URL parsing handles both youtube.com and youtu.be formats correctly
       - Subtitle extraction works end-to-end with the demo video (xRh2sVcNXQ8)
-      - Subtitle language fallback chain works: zh-CN → zh → en
-      - Streaming article generation produces structured Markdown in real-time via SSE
-      - Custom generation rules (taskType, style, audience, constraint) observably influence AI output
-      - Chapter detection correctly parses ## headings and injects [5W1H] buttons
+      - Subtitle language fallback chain works: zh-CN to zh to en
+      - Chapter detection endpoint returns detected chapter list with titles and summaries
+      - Default mode (no custom rules): article preserves original subtitle wording, detects topic boundaries, merges same-topic content into chapters, and formats dialogue with speaker name prefixes (e.g., "Jen: content")
+      - Custom rule mode (rules provided): generated article strictly follows user requirements
+      - Streaming article generation produces properly formatted output in real-time
+      - Custom generation rules (task type, style, audience, constraints) observably influence output
+      - Chapter headings (##) are rendered as h2 with natural line breaks, no border boxes
+      - 5W1H action buttons are injected next to each chapter heading after article completion
       - 5W1H summaries return correct Who/What/When/Where/Why/How for each chapter
-      - 5W1H endpoint uses server-side KV context — no client re-transmission of full article
+      - 5W1H endpoint uses server-side session context — no client re-transmission of full article
       - Hard-coded subtitle fallback loads correctly when direct and proxy fetch both fail
       - URL format validation shows instant inline feedback for invalid inputs
       - Generate button is disabled during active generation to prevent duplicate submissions
     </functionality>
 
     <user_experience>
+      - Single-click flow: user enters URL, optionally sets custom rules, clicks "生成文章" — everything happens in one step
       - Streaming text renders in real-time with typewriter effect — chunks appear as they are generated
+      - Chapters are styled minimally: h2 headings with natural line breaks between sections
       - 5W1H summary boxes are collapsed by default; expand smoothly on click, collapsible again
       - Article layout is clean and readable: clear distinction between headings, paragraphs, and chapters
       - Responsive layout adapts to mobile, tablet, and desktop screen widths
-      - Loading states are shown during generation; clear error messages on failure
+      - Loading state shown during generation with spinner; blinking cursor during streaming
+      - Clear error messages on failure; app remains functional for retry
       - After generation completes, page refresh can still re-query 5W1H summaries via KV (session survives refresh)
     </user_experience>
 
     <technical_quality>
       - Clean module separation: each src/backend/*.ts file has a single responsibility
-      - Gemini API key and Webshare credentials stored as secrets — never exposed to client
+      - AI API keys and Webshare credentials stored as secrets — never exposed to client
       - Cloudflare KV session cache auto-expires after 1 hour (TTL 3600s)
       - SSE streaming uses TransformStream — efficient, backpressure-aware, no memory accumulation
       - Subtitle fallback chain is resilient: direct → proxy → hard-coded; service never fully breaks
-      - Gemini API failures return meaningful error messages, not raw stack traces
+      - AI provider API failures return meaningful error messages, not raw stack traces
       - Frontend JS bundled via esbuild with no framework dependencies
       - TCP Socket proxy implementation correctly uses cloudflare:sockets connect()
       - No CORS errors on deployed Worker
       - All TypeScript code is type-safe with no `any` types except at system boundaries
+      - Two generation modes cleanly separated: chapter-only splitting (no rewriting) and custom rule generation
+      - Chapter detection reliably identifies logical topic segments in subtitle text
     </technical_quality>
 
     <design_polish>
@@ -358,7 +412,7 @@
       - Typography: system-ui sans-serif at 16px base, 1.8 line-height for comfortable reading
       - Input elements: rounded borders, light gray background, visible focus highlight ring
       - Buttons: hover state change, clear disabled state (grayed out + not-allowed cursor)
-      - Chapter cards: subtle border + padding to visually separate sections
+      - Chapters: natural h2 headings with comfortable top margin to separate sections
       - 5W1H summary boxes: light gray background distinct from chapter content
       - Smooth transitions on summary box expand/collapse and button hover
       - Excellent color contrast for accessibility (dark text on light background)
