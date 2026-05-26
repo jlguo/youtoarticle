@@ -82,7 +82,7 @@
       "Step 2: Verify returned text contains no timestamp patterns like 00:00 or -->",
       "Step 3: Verify returned text is non-empty plain text"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "subtitle",
@@ -92,7 +92,7 @@
       "Step 2: If zh-CN available, verify Chinese content returned",
       "Step 3: If zh-CN unavailable, verify system falls back to en"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "subtitle",
@@ -102,7 +102,7 @@
       "Step 2: Verify the system retries via Webshare TCP Socket proxy",
       "Step 3: Verify subtitles are still extracted successfully"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "subtitle",
@@ -112,7 +112,7 @@
       "Step 2: Verify system loads subtitles from src/fallback-subtitles/demo.txt",
       "Step 3: Verify fallback content is non-empty and usable"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "subtitle",
@@ -122,7 +122,7 @@
       "Step 2: Verify each fallback step logs appropriately",
       "Step 3: Verify the app never crashes or hangs on subtitle failure"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "subtitle",
@@ -132,7 +132,7 @@
       "Step 2: Verify a user-friendly error message is returned",
       "Step 3: Verify the server does not crash"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "gemini",
@@ -142,7 +142,7 @@
       "Step 2: Verify chunks are streamed back progressively",
       "Step 3: Verify each chunk is well-formed SSE data"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "gemini",
@@ -152,7 +152,7 @@
       "Step 2: Verify the output is in Chinese",
       "Step 3: Verify the output contains ## chapter headings for structure"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "gemini",
@@ -162,7 +162,7 @@
       "Step 2: Generate article without any rule",
       "Step 3: Verify the rule-influenced output differs in tone or content"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "gemini",
@@ -172,7 +172,7 @@
       "Step 2: Verify response is valid JSON",
       "Step 3: Verify JSON contains who, what, when, where, why, how keys"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "gemini",
@@ -181,7 +181,7 @@
       "Step 1: Generate 5W1H for a chapter that depends on earlier context",
       "Step 2: Verify the summary reflects information from other parts of the article"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "gemini",
@@ -191,7 +191,7 @@
       "Step 2: Verify a user-friendly error message is returned",
       "Step 3: Verify no raw stack traces or API keys are exposed"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "session",
@@ -201,7 +201,7 @@
       "Step 2: Read KV at key session:{uuid}",
       "Step 3: Verify value contains fullText, chapters (array), and subtitle fields"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "session",
@@ -211,7 +211,7 @@
       "Step 2: Read the session back using the session ID",
       "Step 3: Verify all fields match what was saved"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "session",
@@ -220,7 +220,7 @@
       "Step 1: Save a session to KV",
       "Step 2: Verify the expiration/ttl is set to 3600 seconds"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "session",
@@ -240,7 +240,7 @@
       "Step 2: Simulate a page refresh (new request with same sessionId)",
       "Step 3: Verify 5W1H queries still work using the persisted KV session"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "api",
@@ -272,7 +272,7 @@
       "Step 3: Verify X-Session-Id header is present in the response",
       "Step 4: Verify SSE data chunks are streamed"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "api",
@@ -303,7 +303,7 @@
       "Step 3: Verify Content-Type is application/json",
       "Step 4: Verify response has who, what, when, where, why, how fields"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "api",
@@ -365,7 +365,7 @@
       "Step 2: Verify text appears in the result area progressively",
       "Step 3: Verify new chunks append to the existing content (not replace)"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "frontend",
@@ -376,7 +376,7 @@
       "Step 3: Verify content updates happen in real-time as chunks arrive",
       "Step 4: Verify there is no long blank period before content appears"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "frontend",
@@ -387,7 +387,7 @@
       "Step 3: Verify ## headings are rendered as chapter headings",
       "Step 4: Verify paragraphs are properly formatted"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "frontend",
@@ -397,7 +397,7 @@
       "Step 2: Verify each ## heading has a [5W1H] button next to it",
       "Step 3: Verify buttons are injected during streaming, not only at the end"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "frontend",
@@ -408,7 +408,7 @@
       "Step 3: Verify a loading state is shown on the button",
       "Step 4: Verify summary box appears with structured Who/What/When/Where/Why/How"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "frontend",
@@ -419,7 +419,7 @@
       "Step 3: Click again to close the summary box",
       "Step 4: Verify the summary box collapses"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "frontend",
@@ -450,7 +450,7 @@
       "Step 3: Inspect the network request payload",
       "Step 4: Verify payload contains only sessionId and chapter title, not the full article text"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "style",
@@ -503,7 +503,7 @@
       "Step 2: Verify each chapter section has a light border (#e5e7eb)",
       "Step 3: Verify chapters have adequate padding for visual separation"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "style",
@@ -513,7 +513,7 @@
       "Step 2: Verify the summary box background differs from the article background",
       "Step 3: Verify the summary has clear visual separation from surrounding content"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "style",
@@ -602,7 +602,7 @@
       "Step 3: Verify the Generate button re-enables after the error",
       "Step 4: Verify the app is still functional for a subsequent valid request"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "e2e",
@@ -612,6 +612,6 @@
       "Step 2: Verify the Generate button is re-enabled",
       "Step 3: Verify a new generation can be started immediately"
     ],
-    "passes": false
+    "passes": true
   }
 ]

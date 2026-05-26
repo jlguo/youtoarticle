@@ -43,7 +43,7 @@ Read `app_spec.xml` to understand the full requirements, then:
    - `e2e` — full flow with demo video, custom rules, KV persistence across refresh, error cases
 
    Format: `{ "category": "...", "description": "...", "steps": ["Step 1: ...", ...], "passes": false }`
-   All tests start as `"passes": false`. **Never delete/edit/reorder tests** — only toggle `passes`.
+   All tests start as `"passes": false`. **Never delete/edit/reorder tests** — only toggle `passes` to `true` **after** the feature has been verified with actual tool output (curl HTTP response, browser screenshot, or test runner output). Do NOT toggle `passes` based on "the code looks right" or "should work." Every `passes: true` toggle must be backed by concrete verification evidence produced in that same turn.
 
 2. **Scaffold the project skeleton:**
    - `package.json` — `type: "module"`, deps: `youtubei.js` + Gemini SDK, devDeps: `wrangler`, `esbuild`, `typescript`, `@cloudflare/workers-types`
@@ -83,7 +83,7 @@ For each feature in `feature_list.json` with `"passes": false` (in priority orde
      ...")
    ```
 
-4. **Review the subagent's changes** — read the diff, verify tests pass.
+4. **Review the subagent's changes** — read the diff, then independently verify each step in the feature entry using the Testing Strategy below (curl for API, Playwright for UI). Do NOT toggle `passes` to `true` unless every step was verified with concrete output.
 5. **Commit** the feature with a descriptive message referencing the feature ID.
 6. **Update `claude-progress.txt`** with new completion count.
 7. Repeat until all features pass.
@@ -92,3 +92,10 @@ For each feature in `feature_list.json` with `"passes": false` (in priority orde
 
 - **API/backend features**: curl commands (pre-approved in settings.local.json) — verify HTTP codes, headers (`X-Session-Id`, `Content-Type`), SSE `data:` format, JSON structure
 - **UI/frontend features**: Playwright for browser automation — navigate, click, type, screenshot, verify DOM state, check console errors. Verify design tokens, interactivity (button states, typewriter effect, collapsible boxes), and responsive layout
+
+## Anti-patterns (never do these)
+
+- Never batch-toggle multiple `passes` fields at once — verify and toggle one feature at a time
+- Never mark a test passing because "the code is written" — only passing when verified with tool output
+- Never toggle frontend/style/e2e tests without browser/Playwright verification
+- If a feature can't be fully verified (e.g., proxy requires Cloudflare network), leave it `false`

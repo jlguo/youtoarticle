@@ -6,8 +6,8 @@ import { connect } from 'cloudflare:sockets';
 
 // Language fallback priority: Simplified Chinese preferred, then English
 const LANG_PRIORITY = ['zh-Hans', 'zh-CN', 'zh', 'en'];
-const FETCH_TIMEOUT_MS = 15_000; // 15 seconds per individual fetch call
-const INNERTUBE_TIMEOUT_MS = 30_000; // 30 seconds for the entire Innertube operation
+const FETCH_TIMEOUT_MS = 5_000; // 5 seconds per individual fetch call
+const INNERTUBE_TIMEOUT_MS = 8_000; // 8 seconds for the entire Innertube operation
 
 /**
  * Strip timestamp markers and subtitle index numbers from raw subtitle text.

@@ -4,9 +4,9 @@ compatibility_date = "2025-05-25"
 compatibility_flags = ["nodejs_compat"]
 
 [[kv_namespaces]]
-binding = "KV"
-id = "dev-placeholder-id"
-preview_id = "dev-placeholder-id"
+binding = "SESSION_KV"
+id = "a9f21b2b062f4965aaf98a5991fff2c9"
+preview_id = "a9f21b2b062f4965aaf98a5991fff2c9"
 
 [assets]
 directory = "public/"

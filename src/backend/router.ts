@@ -102,7 +102,7 @@ export async function handleRequest(
         return jsonResponse(
           {
             error:
-              "Invalid YouTube URL format. Please provide a valid youtube.com or youtu.be link.",
+              "无效的 YouTube 链接格式。请提供有效的 youtube.com 或 youtu.be 链接。",
           },
           400,
         );
@@ -165,7 +165,7 @@ export async function handleRequest(
           if (fullText) {
             try {
               const chapters = extractChapters(fullText);
-              await saveSession(env.KV, sessionId, {
+              await saveSession(env.SESSION_KV, sessionId, {
                 fullText,
                 chapters,
                 subtitle: subtitles,
@@ -213,6 +213,54 @@ export async function handleRequest(
     }
   }
 
+  // GET /api/test-stream — bypass subtitle extraction, test Gemini directly
+  if (request.method === "GET" && pathname === "/api/test-stream") {
+    const env = toEnv(rawEnv);
+    const testSubtitles = "人工智能正在改变世界。AI技术取得了惊人的进步。";
+    const sessionId = generateUUID();
+    const geminiStream = await streamArticle(testSubtitles, "简短回答，50字以内", env.GEMINI_API_KEY);
+
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const reader = geminiStream.getReader();
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+    let fullText = "";
+
+    (async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          if (chunk.startsWith("data: ") && chunk.endsWith("\n\n")) {
+            const data = chunk.slice(6, -2);
+            if (data !== "[DONE]" && !data.startsWith("ERROR: ")) fullText += data;
+          }
+          await writer.write(value);
+        }
+        if (fullText) {
+          const chapters = extractChapters(fullText);
+          await saveSession(env.SESSION_KV, sessionId, { fullText, chapters, subtitle: testSubtitles });
+        }
+      } catch (e) {
+        await writer.write(encoder.encode(`data: ERROR: ${e instanceof Error ? e.message : "error"}\n\n`));
+      } finally {
+        await writer.close().catch(() => {});
+      }
+    })();
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "X-Session-Id": sessionId,
+        ...corsHeaders(),
+      },
+    });
+  }
+
   // POST /api/5w1h — chapter summary
   if (request.method === "POST" && pathname === "/api/5w1h") {
     try {
@@ -243,7 +291,7 @@ export async function handleRequest(
       }
 
       const env = toEnv(rawEnv);
-      const session = await getSession(env.KV, sessionId);
+      const session = await getSession(env.SESSION_KV, sessionId);
 
       if (!session) {
         return jsonResponse(
