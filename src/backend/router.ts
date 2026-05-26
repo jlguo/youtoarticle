@@ -6,19 +6,27 @@ import { streamArticle as geminiStreamArticle, generate5W1H as gemini5W1H } from
 import { streamArticle as deepseekStreamArticle, generate5W1H as deepseek5W1H } from "./deepseek";
 import { saveSession, getSession } from "./session";
 
-function getStreamArticle(env: Env) {
-  if (env.DEEPSEEK_API_KEY) return deepseekStreamArticle;
-  return geminiStreamArticle;
-}
+type AIProvider = "gemini" | "deepseek";
 
-function getGenerate5W1H(env: Env) {
-  if (env.DEEPSEEK_API_KEY) return deepseek5W1H;
-  return gemini5W1H;
-}
-
-function getAIProviderName(env: Env): string {
-  if (env.DEEPSEEK_API_KEY) return "deepseek";
+function getProvider(request: Request, env: Env): AIProvider {
+  const url = new URL(request.url);
+  const param = url.searchParams.get("provider");
+  if (param === "deepseek" && env.DEEPSEEK_API_KEY) {
+    return "deepseek";
+  }
   return "gemini";
+}
+
+function getStreamFn(provider: AIProvider) {
+  return provider === "deepseek" ? deepseekStreamArticle : geminiStreamArticle;
+}
+
+function get5W1HFn(provider: AIProvider) {
+  return provider === "deepseek" ? deepseek5W1H : gemini5W1H;
+}
+
+function getAPIKey(provider: AIProvider, env: Env): string {
+  return provider === "deepseek" ? env.DEEPSEEK_API_KEY! : env.GEMINI_API_KEY;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -131,14 +139,12 @@ export async function handleRequest(
       // Generate a session UUID for KV storage
       const sessionId = generateUUID();
 
-      // Call AI streaming (DeepSeek or Gemini)
-      const streamFn = getStreamArticle(env);
-      const providerName = getAIProviderName(env);
-      const aiKey = providerName === "deepseek" ? env.DEEPSEEK_API_KEY! : env.GEMINI_API_KEY;
-      const aiStream = await streamFn(
+      // Call AI streaming — Gemini by default, DeepSeek with ?provider=deepseek
+      const provider = getProvider(request, env);
+      const aiStream = await getStreamFn(provider)(
         subtitles,
         rule,
-        aiKey,
+        getAPIKey(provider, env),
       );
 
       // Create a transform stream that:
@@ -238,10 +244,8 @@ export async function handleRequest(
     const env = toEnv(rawEnv);
     const testSubtitles = "人工智能正在改变世界。AI技术取得了惊人的进步。";
     const sessionId = generateUUID();
-    const streamFn = getStreamArticle(env);
-    const providerName = getAIProviderName(env);
-    const aiKey = providerName === "deepseek" ? env.DEEPSEEK_API_KEY! : env.GEMINI_API_KEY;
-    const aiStream = await streamFn(testSubtitles, "简短回答，50字以内", aiKey);
+    const provider = getProvider(request, env);
+    const aiStream = await getStreamFn(provider)(testSubtitles, undefined, getAPIKey(provider, env));
 
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
@@ -330,13 +334,11 @@ export async function handleRequest(
         );
       }
 
-      const genFn = getGenerate5W1H(env);
-      const providerName = getAIProviderName(env);
-      const aiKey = providerName === "deepseek" ? env.DEEPSEEK_API_KEY! : env.GEMINI_API_KEY;
-      const result = await genFn(
+      const provider = getProvider(request, env);
+      const result = await get5W1HFn(provider)(
         chapter,
         session.fullText,
-        aiKey,
+        getAPIKey(provider, env),
       );
 
       return jsonResponse(result);

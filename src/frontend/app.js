@@ -98,7 +98,8 @@ async function startGeneration(youtubeUrl, rule) {
   chapterSummaryMap.clear();
 
   try {
-    const response = await fetch('/api/generate', {
+    const provider = document.getElementById('ai-provider')?.value || 'gemini';
+    const response = await fetch(`/api/generate?provider=${provider}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ youtubeUrl, rule: rule || undefined }),
@@ -354,7 +355,8 @@ async function handle5W1HClick(chapterTitle) {
       throw new Error('会话 ID 丢失，请重新生成文章');
     }
 
-    const response = await fetch('/api/5w1h', {
+    const provider = document.getElementById('ai-provider')?.value || 'gemini';
+    const response = await fetch(`/api/5w1h?provider=${provider}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, chapter: chapterTitle }),

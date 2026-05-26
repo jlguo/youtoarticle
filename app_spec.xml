@@ -69,7 +69,8 @@
 
   <prerequisites>
     <item>Cloudflare account (for Worker deployment and KV namespace creation)</item>
-    <item>Google Gemini API Key (free tier, for gemini-3.5-flash)</item>
+    <item>Google Gemini API Key (free tier, for gemini-2.5-flash — default production provider)</item>
+    <item>DeepSeek API Key (optional, free tier — overrides Gemini in local development)</item>
     <item>Webshare.io free proxy account (for bypassing YouTube anti-bot / captcha)</item>
     <item>Node.js + npm environment (local development and dependency installation)</item>
     <item>wrangler CLI (Cloudflare Worker deployment tool)</item>
@@ -88,7 +89,8 @@
 
     <!-- 2. AI Streaming Article Generation Module -->
     <article_generation>
-      - Streaming text generation via gemini-3.5-flash generateContentStream() API
+      - Streaming text generation via AI provider (Gemini by default, DeepSeek when DEEPSEEK_API_KEY is set)
+      - Gemini: generateContentStream() API; DeepSeek: chat completions with stream: true
       - Frontend renders a real-time typewriter effect — content is displayed chunk by chunk as it is generated
       - Auto-detects Markdown headings (##) for chapter division
       - Preserves conversational tone while optimizing for readable article layout
@@ -102,7 +104,7 @@
       - Chapter titles are normalized: ## prefix and leading/trailing whitespace stripped before storage and matching
       - Clicking the [5W1H] button next to a chapter sends sessionId + chapter title to server
       - Server retrieves full article context from KV (no client re-transmission)
-      - Generates structured Who/What/When/Where/Why/How summaries via Gemini
+      - Generates structured Who/What/When/Where/Why/How summaries via the active AI provider (Gemini or DeepSeek)
       - Summaries rendered in a fixed format: Who, What, When, Where, Why, How as structured JSON
       - Summary boxes are collapsed by default, expand on click
     </chapter_summary>
@@ -240,14 +242,17 @@
       </tasks>
     </step>
     <step number="3">
-      <title>Gemini AI Module &amp; Prompt Templates</title>
+      <title>AI Module &amp; Prompt Templates (Gemini + DeepSeek)</title>
       <tasks>
-        - Implement src/backend/gemini.ts — Gemini API client for gemini-3.5-flash
-        - Implement generateContentStream() for streaming article generation
-        - Implement generateContent() for 5W1H structured JSON summary
-        - Create src/backend/prompts.ts with article generation prompt template
+        - Implement src/backend/gemini.ts — Gemini API client for gemini-2.5-flash (default production provider)
+        - Implement src/backend/deepseek.ts — DeepSeek API client for deepseek-chat (local dev provider)
+        - Both modules expose the same interface: streamArticle() and generate5W1H()
+        - Implement Gemini: generateContentStream() for streaming, generateContent() for 5W1H JSON
+        - Implement DeepSeek: chat completions with stream: true for streaming, stream: false for 5W1H
+        - Create src/backend/prompts.ts with dual-format templates: plain text for Gemini, chat messages for DeepSeek
         - Add optional rule constraint injection (taskType, style, audience, constraint) into prompts
         - Create 5W1H summarization prompt template using chapter context + full article
+        - Add env-var auto-detection in router: DEEPSEEK_API_KEY present → DeepSeek, else → Gemini
         - Add error handling with graceful fallback messages on API failure
       </tasks>
     </step>

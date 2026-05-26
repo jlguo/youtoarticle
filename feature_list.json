@@ -195,13 +195,13 @@
   },
   {
     "category": "ai",
-    "description": "AI provider auto-detection: DeepSeek when DEEPSEEK_API_KEY is set, Gemini otherwise",
+    "description": "AI provider selection via ?provider= query parameter — gemini is default, deepseek on ?provider=deepseek",
     "steps": [
-      "Step 1: Start dev server with DEEPSEEK_API_KEY set in .dev.vars",
-      "Step 2: Verify AI calls route to DeepSeek (check logs or response patterns)",
-      "Step 3: Remove DEEPSEEK_API_KEY and verify AI calls fall back to Gemini"
+      "Step 1: POST to /api/generate without ?provider — verify Gemini is used",
+      "Step 2: POST to /api/generate?provider=deepseek — verify DeepSeek is used",
+      "Step 3: POST to /api/generate?provider=unknown — verify falls back to Gemini"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "ai",
