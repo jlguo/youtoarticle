@@ -124,12 +124,14 @@ export function extractVideoId(url: string): string | null {
 export async function fetchSubtitles(videoId: string, _env: Env): Promise<string> {
   const timedFetch = createTimedFetch(FETCH_TIMEOUT_MS);
 
-  // Innertube.create() accepts a custom fetch function that applies to all internal requests
+  // We only need transcript data — skip the player script to avoid the
+  // "[YOUTUBEJS][Player]: Failed to extract signature decipher algorithm" error.
   const innertube = await withTimeout(
     Innertube.create({
       fetch: timedFetch,
       generate_session_locally: true,
       retrieve_innertube_config: false,
+      retrieve_player: false,
     }),
     INNERTUBE_TIMEOUT_MS,
     'Innertube.create()',
