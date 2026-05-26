@@ -32,7 +32,7 @@
 
     <youtube_module>
       <library>youtubei.js (npm: youtubei.js) — most active Innertube API library</library>
-      <worker_compat>Risk: youtubei.js may use Node.js APIs incompatible with Workers. Fallback: raw Innertube HTTP calls or a Workers-compatible fork if needed.</worker_compat>
+      <player_optimization>retrieve_player: false — skip YouTube player script (we only need transcript API). Avoids "[YOUTUBEJS][Player]: Failed to extract signature decipher algorithm" error.</player_optimization>
       <caption_fetch>Innertube API with official-like stability</caption_fetch>
       <language_strategy>zh-CN → zh → en (auto fallback chain)</language>
       <proxy>Cloudflare TCP Socket connect() + Webshare.io proxy (anti-captcha)</proxy>
@@ -42,10 +42,10 @@
     <ai_module>
       <providers>
         <default>Gemini (gemini-2.5-flash) — generateContentStream() + generateContent(). The default AI provider for production deployment.</default>
-        <local_dev>DeepSeek (deepseek-chat) — OpenAI-compatible chat completions API. Takes priority in local development when DEEPSEEK_API_KEY is set (free tier, no credit card required).</local_dev>
+        <secondary>DeepSeek (deepseek-v4-flash) — OpenAI-compatible chat completions API, 1M context window. Activated via ?provider=deepseek query parameter. No max_tokens limit — model decides output length freely.</secondary>
       </providers>
-      <selection_logic>Env-var auto-detection: if DEEPSEEK_API_KEY is present, all AI calls route to DeepSeek (local dev convenience); otherwise Gemini is the default (production). No runtime fallback between providers — the choice is fixed at Worker startup.</selection_logic>
-      <streaming>SSE streaming output via DeepSeek chat completions (stream: true) for local dev, or Gemini generateContentStream() by default</streaming>
+      <selection_logic>Query-parameter routing: GET/POST ?provider=deepseek → DeepSeek (requires DEEPSEEK_API_KEY secret); otherwise → Gemini (default). Frontend provides a &lt;select&gt; model picker that appends the parameter to fetch URLs. Falls back to Gemini for unknown provider values.</selection_logic>
+      <streaming>SSE streaming with sentence-level batching. Tokens are accumulated server-side until a sentence-ending character (。！？\n) or 40-char threshold, then flushed as a single SSE message. Reduces SSE message count from ~1000 to ~50-100 per article. Frontend renders with fadeInUp animation and blinking cursor during streaming.</streaming>
       <prompt_engineering>Dual-format prompt templates in src/backend/prompts.ts: plain text for Gemini (buildArticlePrompt / build5W1HPrompt) and chat messages for DeepSeek (buildArticleMessages / build5W1HMessages). Same generation rules, different transport format.</prompt_engineering>
       <response_format>Article text in Markdown + 5W1H structured JSON</response_format>
       <error_handling>Graceful failure with fallback content; provider-specific error messages (DeepSeek/Gemini distinguished in error output)</error_handling>
@@ -70,7 +70,7 @@
   <prerequisites>
     <item>Cloudflare account (for Worker deployment and KV namespace creation)</item>
     <item>Google Gemini API Key (free tier, for gemini-2.5-flash — default production provider)</item>
-    <item>DeepSeek API Key (optional, free tier — overrides Gemini in local development)</item>
+    <item>DeepSeek API Key (optional, free tier — enables DeepSeek via ?provider=deepseek)</item>
     <item>Webshare.io free proxy account (for bypassing YouTube anti-bot / captcha)</item>
     <item>Node.js + npm environment (local development and dependency installation)</item>
     <item>wrangler CLI (Cloudflare Worker deployment tool)</item>
@@ -89,12 +89,15 @@
 
     <!-- 2. AI Streaming Article Generation Module -->
     <article_generation>
-      - Streaming text generation via AI provider (Gemini by default, DeepSeek when DEEPSEEK_API_KEY is set)
+      - Streaming text generation via AI provider (Gemini by default, DeepSeek via ?provider=deepseek)
       - Gemini: generateContentStream() API; DeepSeek: chat completions with stream: true
-      - Frontend renders a real-time typewriter effect — content is displayed chunk by chunk as it is generated
+      - Sentence-level SSE batching: tokens accumulate until 。！？\n or 40-char threshold, then flush
+      - Frontend renders with fadeInUp CSS animation (opacity + translateY, 0.4s ease-out) on new paragraphs/chapters
+      - Blinking cursor element appears during streaming, auto-removed on completion
       - Auto-detects Markdown headings (##) for chapter division
       - Preserves conversational tone while optimizing for readable article layout
       - Supports optional natural-language generation rules (taskType, style, audience, constraint) sent as `rule: string` in the request body
+      - Frontend model selector: &lt;select&gt; with Gemini 2.5 Flash (default) / DeepSeek V4 Flash
       - Shows loading state during generation; provides friendly degradation on failure
     </article_generation>
 

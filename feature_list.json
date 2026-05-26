@@ -135,6 +135,16 @@
     "passes": false
   },
   {
+    "category": "subtitle",
+    "description": "youtubei.js skips player script retrieval (retrieve_player: false) — suppresses signature decipher errors",
+    "steps": [
+      "Step 1: Deploy Worker and request subtitle extraction for demo video",
+      "Step 2: Verify no [YOUTUBEJS][Player] error in Worker logs",
+      "Step 3: Verify subtitle extraction still works correctly"
+    ],
+    "passes": false
+  },
+  {
     "category": "ai",
     "description": "Streaming article generation produces SSE chunks via AI provider (Gemini generateContentStream or DeepSeek chat completions with stream:true)",
     "steps": [
@@ -243,6 +253,26 @@
       "Step 1: Configure an invalid DEEPSEEK_API_KEY",
       "Step 2: POST to /api/generate with valid youtubeUrl",
       "Step 3: Verify SSE stream returns data: ERROR: with clear message, not raw stack trace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "ai",
+    "description": "DeepSeek uses deepseek-v4-flash model with 1M context window and no max_tokens limit",
+    "steps": [
+      "Step 1: Check deepseek.ts MODEL is deepseek-v4-flash",
+      "Step 2: Verify no max_tokens in streaming request body",
+      "Step 3: Generate article and verify output exceeds 4096 tokens when needed"
+    ],
+    "passes": true
+  },
+  {
+    "category": "ai",
+    "description": "SSE output uses sentence-level batching — accumulates tokens to 。！？\\n or 40-char threshold before flushing",
+    "steps": [
+      "Step 1: Generate article via DeepSeek",
+      "Step 2: Verify SSE messages are sentences/phrases, not individual characters",
+      "Step 3: Verify each chunk ends at sentence boundary or exceeds threshold"
     ],
     "passes": true
   },
@@ -502,6 +532,26 @@
       "Step 2: Click [5W1H] on a chapter",
       "Step 3: Inspect the network request payload",
       "Step 4: Verify payload contains only sessionId and chapter title, not the full article text"
+    ],
+    "passes": true
+  },
+  {
+    "category": "frontend",
+    "description": "New paragraphs and chapters animate in with fadeInUp (opacity + translateY, 0.4s ease-out)",
+    "steps": [
+      "Step 1: Generate an article",
+      "Step 2: Verify .animate-in class is on h1, .chapter-block, and p elements",
+      "Step 3: Verify CSS @keyframes fadeInUp exists with correct properties"
+    ],
+    "passes": true
+  },
+  {
+    "category": "frontend",
+    "description": "Blinking cursor element appears during SSE streaming and is removed on completion",
+    "steps": [
+      "Step 1: Start article generation",
+      "Step 2: Verify #stream-cursor element with .cursor-blink class exists during streaming",
+      "Step 3: Wait for completion and verify cursor element is removed from DOM"
     ],
     "passes": true
   },
