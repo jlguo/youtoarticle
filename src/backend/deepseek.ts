@@ -60,6 +60,23 @@ export async function streamArticle(
       const decoder = new TextDecoder();
       let buffer = "";
       let doneSent = false;
+      let pending = ""; // accumulate tokens for sentence-level batching
+      const SENTENCE_END = /[。！？\n]/;
+      const FLUSH_THRESHOLD = 40; // chars — flush even without sentence end
+
+      const flushPending = async () => {
+        if (!pending) return;
+        const segments = pending.split('\n');
+        for (let s = 0; s < segments.length; s++) {
+          if (s > 0) {
+            await writer.write(encoder.encode('data: \n\n'));
+          }
+          if (segments[s]) {
+            await writer.write(encoder.encode(`data: ${segments[s]}\n\n`));
+          }
+        }
+        pending = "";
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -76,6 +93,7 @@ export async function streamArticle(
           const jsonStr = trimmed.slice(6).trim();
           if (!jsonStr) continue;
           if (jsonStr === "[DONE]") {
+            await flushPending();
             await writer.write(encoder.encode("data: [DONE]\n\n"));
             doneSent = true;
             continue;
@@ -91,17 +109,10 @@ export async function streamArticle(
 
             const delta = chunk?.choices?.[0]?.delta;
             if (delta?.content) {
-              // SSE payloads must not contain \n — it breaks the \n\n delimiter.
-              // Split on \n and emit each line as a separate data: message.
-              // Empty lines from \n\n are preserved as data: (empty payload).
-              const segments = delta.content.split('\n');
-              for (let s = 0; s < segments.length; s++) {
-                if (s > 0) {
-                  await writer.write(encoder.encode('data: \n\n'));
-                }
-                if (segments[s]) {
-                  await writer.write(encoder.encode(`data: ${segments[s]}\n\n`));
-                }
+              pending += delta.content;
+              // Flush at sentence boundaries or when threshold reached
+              if (SENTENCE_END.test(pending) || pending.length >= FLUSH_THRESHOLD) {
+                await flushPending();
               }
             }
           } catch {

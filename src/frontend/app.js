@@ -91,6 +91,11 @@ async function startGeneration(youtubeUrl, rule) {
   loadingEl.style.display = 'flex';
   errorEl.style.display = 'none';
   resultArea.innerHTML = '';
+  // Add blinking cursor
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor-blink';
+  cursor.id = 'stream-cursor';
+  resultArea.appendChild(cursor);
   fullTextBuffer = '';
   renderedLength = 0;
   currentChapterDiv = null;
@@ -168,6 +173,9 @@ async function startGeneration(youtubeUrl, rule) {
     generateBtn.textContent = '开始生成';
     loadingEl.style.display = 'none';
     abortController = null;
+    // Remove blinking cursor
+    const cursor = document.getElementById('stream-cursor');
+    if (cursor) cursor.remove();
   }
 }
 
@@ -238,9 +246,10 @@ function renderLine(line) {
  */
 function renderH1(title) {
   const h1 = document.createElement('h1');
-  h1.className = 'article-title';
+  h1.className = 'article-title animate-in';
   h1.textContent = title;
-  resultArea.appendChild(h1);
+  const cursor = document.getElementById('stream-cursor');
+  resultArea.insertBefore(h1, cursor);
 }
 
 /**
@@ -250,7 +259,7 @@ function renderH1(title) {
 function renderChapter(title) {
   // Create chapter block
   const chapterDiv = document.createElement('div');
-  chapterDiv.className = 'chapter-block';
+  chapterDiv.className = 'chapter-block animate-in';
 
   // Header row: h2 + 5W1H button
   const headerDiv = document.createElement('div');
@@ -286,7 +295,8 @@ function renderChapter(title) {
   summaryBox.appendChild(summaryBody);
   chapterDiv.appendChild(summaryBox);
 
-  resultArea.appendChild(chapterDiv);
+  const cursor = document.getElementById('stream-cursor');
+  resultArea.insertBefore(chapterDiv, cursor);
 
   // Track current chapter for subsequent paragraph insertion
   currentChapterDiv = chapterDiv;
@@ -311,10 +321,10 @@ function renderChapter(title) {
  */
 function renderParagraph(text) {
   const p = document.createElement('p');
+  p.className = 'animate-in';
   p.textContent = text;
 
   if (currentChapterDiv) {
-    // Insert paragraph before the summary box inside the chapter block
     const summaryBox = currentChapterDiv.querySelector('.summary-box');
     if (summaryBox) {
       currentChapterDiv.insertBefore(p, summaryBox);
@@ -322,7 +332,8 @@ function renderParagraph(text) {
       currentChapterDiv.appendChild(p);
     }
   } else {
-    resultArea.appendChild(p);
+    const cursor = document.getElementById('stream-cursor');
+    resultArea.insertBefore(p, cursor);
   }
 }
 
