@@ -2,4 +2,6 @@
 
 interface Env {
   SESSION_KV: KVNamespace;
+  GEMINI_API_KEY: string;
+  DEEPSEEK_API_KEY?: string;
 }
