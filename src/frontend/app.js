@@ -104,6 +104,13 @@ function feedContent(text) {
   if (!hasReceivedFirstData) {
     hasReceivedFirstData = true;
     emptyState.style.display = 'none';
+    streamingEl.classList.add('hidden');
+    articleHeader.classList.remove('hidden');
+    metadataEl.classList.remove('hidden');
+    enhancementsEl.classList.remove('hidden');
+    articleActions.classList.remove('hidden');
+    if (isFromFallback) fallbackWarning.classList.remove('hidden');
+    headerTimestamp.textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   }
 
   fullArticleText += text;
@@ -123,6 +130,7 @@ function feedContent(text) {
         }
         renderedLen = fullArticleText.length;
         classifyBlocks();
+        wrapNewChapters();
         updateMetadata();
         updateTOCItems();
       }
@@ -201,6 +209,7 @@ function updateMetadata() {
   document.getElementById('meta-lang').textContent = '中文';
   document.getElementById('meta-time').textContent =
     new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  headerChapterCount.textContent = chapters + ' 章';
 }
 
 // =============================================================================
@@ -356,29 +365,17 @@ function onStreamComplete() {
   updateMetadata();
 
   classifyBlocks();
-
-  const h2s = resultEl.querySelectorAll('h2');
-  h2s.forEach((h2, i) => {
-    wrapChapterSection(h2, i);
-  });
+  wrapNewChapters();
 
   initTOC();
 
-  emptyState.style.display = 'none';
-  streamingEl.classList.add('hidden');
-  articleHeader.classList.remove('hidden');
-  metadataEl.classList.remove('hidden');
-  enhancementsEl.classList.remove('hidden');
-  articleActions.classList.remove('hidden');
+  const sections = resultEl.querySelectorAll('.chapter-section');
+  sections.forEach((section) => {
+    const h2 = section.querySelector('h2');
+    if (h2) addChapter5W1H(section, h2.textContent || '');
+  });
+
   articleFooter.classList.remove('hidden');
-
-  if (isFromFallback) {
-    fallbackWarning.classList.remove('hidden');
-  }
-
-  headerTimestamp.textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-  const chCount = (fullArticleText.match(/^## /gm) || []).length;
-  headerChapterCount.textContent = chCount + ' 章';
 
   isGenerating = false;
   generateBtn.disabled = false;
@@ -411,7 +408,16 @@ function classifyBlocks() {
   });
 }
 
-function wrapChapterSection(h2, index) {
+function wrapNewChapters() {
+  const h2s = resultEl.querySelectorAll('h2');
+  for (let i = 0; i < h2s.length; i++) {
+    const h2 = h2s[i];
+    if (h2.closest('.chapter-section')) continue;
+    wrapChapterStructure(h2, i);
+  }
+}
+
+function wrapChapterStructure(h2, index) {
   const id = 'chapter-' + index;
   h2.id = id;
 
@@ -422,7 +428,6 @@ function wrapChapterSection(h2, index) {
   h2.parentNode.insertBefore(section, h2);
   section.appendChild(h2);
 
-  // Move h2 and following siblings into section until next h2
   let next = section.nextSibling;
   while (next && next.tagName !== 'H2') {
     const current = next;
@@ -430,14 +435,12 @@ function wrapChapterSection(h2, index) {
     section.appendChild(current);
   }
 
-  // #16: Heading row with chevron
   const title = h2.textContent || '';
   const row = document.createElement('div');
   row.className = 'chapter-heading-row';
   h2.parentNode.insertBefore(row, h2);
   row.appendChild(h2);
 
-  // #16: Chevron button
   const chevron = document.createElement('button');
   chevron.className = 'chapter-chevron';
   chevron.setAttribute('aria-label', 'Toggle chapter');
@@ -447,16 +450,6 @@ function wrapChapterSection(h2, index) {
   });
   row.insertBefore(chevron, h2);
 
-  // #16/#17: 5W1H button with gradient bg + Sparkles icon
-  const btn = document.createElement('button');
-  btn.className = 'btn-5w1h';
-  btn.dataset.chapter = title;
-  const sparklesSvg = '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z"/><path d="M19 3l.5 2L21 5.5l-1.5.5L19 8l-.5-2L17 5.5l1.5-.5z"/><path d="M5 15l.5 2L7 17.5l-1.5.5L5 20l-.5-2L3 17.5l1.5-.5z"/></svg>';
-  const textSpan = '<span class="btn-5w1h-text">5W1H</span>';
-  btn.innerHTML = sparklesSvg + textSpan;
-  row.appendChild(btn);
-
-  // Wrap remaining content in chapter-body for collapse
   const body = document.createElement('div');
   body.className = 'chapter-body';
   const content = document.createElement('div');
@@ -464,27 +457,41 @@ function wrapChapterSection(h2, index) {
   body.appendChild(content);
   section.appendChild(body);
 
-  // Move all non-heading, non-summary children into chapter-content
   while (section.children.length > 2) {
     const child = section.children[1];
     if (child === body) break;
     content.appendChild(child);
   }
 
-  // #17: Summary box with gradient header
+  return { section, title };
+}
+
+function addChapter5W1H(section, title) {
+  const row = section.querySelector('.chapter-heading-row');
+  if (!row || row.querySelector('.btn-5w1h')) return;
+
+  const sparklesSvg = '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z"/><path d="M19 3l.5 2L21 5.5l-1.5.5L19 8l-.5-2L17 5.5l1.5-.5z"/><path d="M5 15l.5 2L7 17.5l-1.5.5L5 20l-.5-2L3 17.5l1.5-.5z"/></svg>';
+  const textSpan = '<span class="btn-5w1h-text">5W1H</span>';
+
+  const btn = document.createElement('button');
+  btn.className = 'btn-5w1h';
+  btn.dataset.chapter = title;
+  btn.innerHTML = sparklesSvg + textSpan;
+  row.appendChild(btn);
+
+  const body = section.querySelector('.chapter-body');
+  if (!body) return;
+
   const summaryBox = document.createElement('div');
   summaryBox.className = 'summary-box';
 
-  // Outer glow
   const glow = document.createElement('div');
   glow.className = 'summary-glow';
   summaryBox.appendChild(glow);
 
-  // Container
   const container = document.createElement('div');
   container.className = 'summary-container';
 
-  // Gradient header
   const summaryHeader = document.createElement('div');
   summaryHeader.className = 'summary-header';
   summaryHeader.innerHTML = sparklesSvg + '<span class="summary-header-title">5W1H 智能总结</span>';
@@ -495,7 +502,13 @@ function wrapChapterSection(h2, index) {
   container.appendChild(summaryBody);
 
   summaryBox.appendChild(container);
-  body.insertBefore(summaryBox, content);
+
+  const content = body.querySelector('.chapter-content');
+  if (content) {
+    body.insertBefore(summaryBox, content);
+  } else {
+    body.appendChild(summaryBox);
+  }
 
   chapterSummaryMap.set(title, { button: btn, box: summaryBox, body: summaryBody, sessionId });
 
@@ -765,6 +778,10 @@ generateBtn.addEventListener('click', async () => {
     streamingEl.classList.add('hidden');
     errorEl.textContent = err.message || _.errGenerateFailed;
     errorEl.classList.remove('hidden');
+    articleHeader.classList.add('hidden');
+    metadataEl.classList.add('hidden');
+    enhancementsEl.classList.add('hidden');
+    articleActions.classList.add('hidden');
     fullArticleText = ''; renderedLen = 0;
     isGenerating = false;
     generateBtn.disabled = false;
