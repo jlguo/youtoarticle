@@ -20,7 +20,7 @@
           type="url"
           id="youtube-url"
           class="url-input"
-          placeholder="https://www.youtube.com/watch?v=... 或 https://youtu.be/..."
+          placeholder="https://www.youtube.com/watch?v=...  支持 youtu.be、embed 格式"
           required
           autofocus
         >
@@ -31,7 +31,7 @@
         <textarea
           id="custom-rules"
           class="rules-textarea"
-          placeholder="输入自定义生成要求..."
+          placeholder="例如：用幽默风格写给初学者 / 输出 3 点核心观点 / 以访谈对话形式呈现"
           rows="3"
         ></textarea>
       </div>
@@ -44,6 +44,18 @@
       </div>
       <button id="generate-btn" class="btn-primary">开始生成</button>
     </section>
+
+    <details class="tips-section" open>
+      <summary class="tips-summary">使用提示</summary>
+      <div class="tips-body">
+        <p><strong>支持的链接格式</strong>：<code>youtube.com/watch?v=</code>、<code>youtu.be/</code>、<code>youtube.com/embed/</code></p>
+        <p><strong>自定义要求怎么写</strong>：描述你想要的输出效果，比如——任务类型（总结 / 对话 / 观点提炼）、输出风格（幽默 / 学术 / 通俗）、目标受众（初学者 / 专业人士）、约束条件（限 500 字 / 3 个要点）</p>
+        <p><strong>生成时间</strong>：通常 10~30 秒，取决于视频字幕长度和 AI 响应速度</p>
+        <p><strong>5W1H 摘要</strong>：文章生成后每个章节标题旁会出现 <span class="mini-badge">5W1H</span> 按钮，点击可查看该章节的 Who / What / When / Where / Why / How 分析</p>
+        <p><strong>AI 模型</strong>：默认 Gemini 2.5 Flash（免费），也可切换 DeepSeek V4 Flash</p>
+        <p><strong>有效期</strong>：文章生成后 24 小时内可查看 5W1H 摘要，超时需重新生成</p>
+      </div>
+    </details>
 
     <div id="loading" class="loading-indicator" style="display: none;">
       <span class="spinner"></span>

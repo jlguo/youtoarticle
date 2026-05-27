@@ -1,4 +1,5 @@
 import { marked } from "marked";
+import { _ } from "./locale.js";
 
 // =============================================================================
 // DOM References
@@ -10,131 +11,158 @@ const resultArea = document.getElementById('result');
 const loadingEl = document.getElementById('loading');
 const errorEl = document.getElementById('error');
 const urlErrorEl = document.getElementById('url-error');
+
 // =============================================================================
 // State
 // =============================================================================
 let sessionId = null;
 let isGenerating = false;
-var renderScheduled = false;
-var rafId = 0;
+let renderScheduled = false;
+let rafId = 0;
 let abortController = null;
 
-/**
- * Map of chapter title -> { button, box, body }
- * @type {Map<string, { button: HTMLButtonElement, box: HTMLDivElement, body: HTMLDivElement }>}
- */
+/** @type {Map<string, { button: HTMLButtonElement, box: HTMLDivElement, body: HTMLDivElement }>} */
 const chapterSummaryMap = new Map();
 
-var fullArticleText = "";  // accumulated for 5W1H generation
+let fullArticleText = "";
+let renderedLen = 0;
+
+// =============================================================================
+// Streaming: SSE → DOM
+// =============================================================================
+
 function feedContent(text) {
   fullArticleText += text;
   if (!renderScheduled) {
     renderScheduled = true;
-    rafId = requestAnimationFrame(function () {
-      resultArea.innerHTML = marked.parse(fullArticleText) + '<span id="stream-cursor" class="cursor-blink"></span>';
+    rafId = requestAnimationFrame(() => {
+      if (fullArticleText.length > renderedLen) {
+        resultArea.innerHTML = marked.parse(fullArticleText)
+          + '<span id="stream-cursor" class="cursor-blink"></span>';
+        renderedLen = fullArticleText.length;
+      }
       renderScheduled = false;
       rafId = 0;
     });
   }
 }
 
-function unescapeJsonString(str) {
-  return str.replace(/\\n/g, "\n").replace(/\\"/g, "\"").replace(/\\\\/g, "\\");
-}
-
 async function streamArticle(youtubeUrl, rule, provider, signal) {
-  var response = await fetch("/api/generate?provider=" + provider, {
+  const response = await fetch("/api/generate?provider=" + provider, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ youtubeUrl: youtubeUrl, rule: rule || undefined }),
-    signal: signal,
+    body: JSON.stringify({ youtubeUrl, rule: rule || undefined }),
+    signal,
   });
 
   if (!response.ok) {
-    var errMsg = "请求失败 (HTTP " + response.status + ")";
-    try { var ed = await response.json(); if (ed.error) errMsg = ed.error; } catch (_) {}
+    let errMsg = _.errRequestFailed(response.status);
+    try {
+      const ed = await response.json();
+      if (ed.error) errMsg = ed.error;
+    } catch (_) { /* body not JSON */ }
     throw new Error(errMsg);
   }
 
-  var reader = response.body.getReader();
-  var decoder = new TextDecoder();
-  var buffer = "";
-  var lineStart = 0;
+  const sessionId = response.headers.get("X-Session-Id");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let lineStart = 0;
 
   while (true) {
-    var rr = await reader.read();
-    if (rr.done) break;
-    buffer += decoder.decode(rr.value, { stream: true });
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
 
-    var newlineIdx;
+    let newlineIdx;
     while ((newlineIdx = buffer.indexOf("\n", lineStart)) !== -1) {
-      var line = buffer.slice(lineStart, newlineIdx).trim();
+      const line = buffer.slice(lineStart, newlineIdx).trim();
       lineStart = newlineIdx + 1;
 
       if (line.slice(0, 6) !== "data: ") continue;
-      var jsonStr = line.slice(6).trim();
+      const jsonStr = line.slice(6).trim();
       if (!jsonStr) continue;
-      if (jsonStr === "[DONE]") return;
+      if (jsonStr === "[DONE]") break;
 
-      var match = jsonStr.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-      if (match) {
-        var content = unescapeJsonString(match[1]);
-        if (content) feedContent(content);
-        continue;
-      }
+      let parsed;
+      try { parsed = JSON.parse(jsonStr); } catch (_) { continue; }
 
-      var matches = jsonStr.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/g);
-      if (matches) {
-        for (var i = 0; i < matches.length; i++) {
-          var tm = matches[i].match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-          if (tm && tm[1]) {
-            var content = unescapeJsonString(tm[1]);
-            if (content) feedContent(content);
-          }
-        }
-      }
+      // Gemini SSE: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
+      const geminiText = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (geminiText) { feedContent(geminiText); continue; }
+
+      // DeepSeek SSE: { choices: [{ delta: { content: "..." } }] }
+      const deepseekText = parsed?.choices?.[0]?.delta?.content;
+      if (deepseekText) { feedContent(deepseekText); continue; }
     }
   }
+  return sessionId;
 }
 
 // =============================================================================
 // 5W1H Generation (non-streaming)
 // =============================================================================
 
-async function generate5W1H(chapterTitle) {
-  var provider = document.getElementById("ai-provider")?.value || "deepseek";
-  var res = await fetch("/api/5w1h?provider=" + provider, {
+async function generate5W1H(sessionId, chapterTitle) {
+  const provider = document.getElementById("ai-provider")?.value || "deepseek";
+  const res = await fetch("/api/5w1h?provider=" + provider, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chapter: chapterTitle, fullText: fullArticleText }),
+    body: JSON.stringify({ sessionId, chapter: chapterTitle }),
   });
 
   if (!res.ok) {
-    var em = "请求失败 (HTTP " + res.status + ")";
-    try { var ed = await res.json(); if (ed.error) em = ed.error; } catch (_) {}
+    let em = _.errRequestFailed(res.status);
+    try {
+      const ed = await res.json();
+      if (ed.error) em = ed.error;
+    } catch (_) { /* body not JSON */ }
     throw new Error(em);
   }
 
-  var data = await res.json();
+  const data = await res.json();
 
   // DeepSeek format: { choices: [{ message: { content: "..." } }] }
-  var rawContent = data?.choices?.[0]?.message?.content || "";
-  if (rawContent) {
-    rawContent = rawContent.replace(/^```(?:json)?\s*\n?|\n?```\s*$/g, "").trim();
-    return JSON.parse(rawContent);
-  }
+  const rawContent = data?.choices?.[0]?.message?.content || "";
+  if (rawContent) return parse5W1H(rawContent);
 
   // Gemini format: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
-  var raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  if (raw) {
-    raw = raw.replace(/^```(?:json)?\s*\n?|\n?```\s*$/g, "").trim();
-    return JSON.parse(raw);
-  }
+  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if (raw) return parse5W1H(raw);
 
   // Fallback: if the response IS already the 5W1H object
   if (data.who || data.what) return data;
 
-  throw new Error("无法解析 5W1H 响应");
+  throw new Error(_.errParse5W1H);
+}
+
+function parse5W1H(raw) {
+  // 1. Strip markdown code fences (multi-line aware)
+  raw = raw.replace(/```(?:json)?\s*\n?/g, "").replace(/```\s*$/g, "").trim();
+
+  // 2. Try direct JSON.parse
+  try { return JSON.parse(raw); } catch (_) { /* continue */ }
+
+  // 3. Clean: remove trailing commas, try again
+  const cleaned = raw.replace(/,\s*([}\]])/g, "$1");
+  try { return JSON.parse(cleaned); } catch (_) { /* continue */ }
+
+  // 4. Regex fallback — extract each field individually
+  const result = {};
+  const keys = ["who", "what", "when", "where", "why", "how"];
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    const re = new RegExp('"' + k + '"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"');
+    const m = raw.match(re);
+    if (m) {
+      result[k] = m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+    }
+  }
+  if (result.who || result.what) return result;
+
+  throw new Error(_.errParse5W1H);
 }
 
 // =============================================================================
@@ -146,14 +174,14 @@ const YOUTUBE_PATTERNS = [
 ];
 
 function isValidYoutubeUrl(url) {
-  return YOUTUBE_PATTERNS.some(function (p) { return p.test(url.trim()); });
+  return YOUTUBE_PATTERNS.some(p => p.test(url.trim()));
 }
 
 function validateUrl() {
-  var url = youtubeUrlInput.value.trim();
+  const url = youtubeUrlInput.value.trim();
   if (!url) { urlErrorEl.textContent = ''; return true; }
   if (!isValidYoutubeUrl(url)) {
-    urlErrorEl.textContent = '请输入有效的 YouTube 链接（youtube.com/watch?v= 或 youtu.be/）';
+    urlErrorEl.textContent = _.errInvalidURL;
     return false;
   }
   urlErrorEl.textContent = '';
@@ -161,93 +189,93 @@ function validateUrl() {
 }
 
 // =============================================================================
-// Generation — Worker Passthrough
+// Generation Flow
 // =============================================================================
 
 async function startGeneration(youtubeUrl, rule) {
   abortController = new AbortController();
   isGenerating = true;
   generateBtn.disabled = true;
-  generateBtn.textContent = "生成中...";
+  generateBtn.textContent = _.btnGenerating;
   loadingEl.style.display = "flex";
   errorEl.style.display = "none";
   resultArea.innerHTML = "";
   chapterSummaryMap.clear();
   fullArticleText = "";
+  renderedLen = 0;
   renderScheduled = false;
   rafId = 0;
-
   sessionId = null;
 
   try {
-    var provider = document.getElementById("ai-provider")?.value || "deepseek";
-    await streamArticle(youtubeUrl, rule, provider, abortController.signal);
+    const provider = document.getElementById("ai-provider")?.value || "deepseek";
+    sessionId = await streamArticle(youtubeUrl, rule, provider, abortController.signal);
     onStreamComplete();
   } catch (err) {
     if (err.name === "AbortError") return;
-    showError(err.message || "生成文章时发生错误，请稍后重试");
+    showError(err.message || _.errGenerateFailed);
   } finally {
     isGenerating = false;
     generateBtn.disabled = false;
-    generateBtn.textContent = "开始生成";
+    generateBtn.textContent = _.btnGenerate;
     loadingEl.style.display = "none";
     abortController = null;
   }
 }
 
 // =============================================================================
-// Post-completion: inject 5W1H next to each chapter heading
+// Post-completion: inject 5W1H buttons next to each h2
 // =============================================================================
 
 function onStreamComplete() {
   if (rafId) { cancelAnimationFrame(rafId); rafId = 0; renderScheduled = false; }
   resultArea.innerHTML = marked.parse(fullArticleText);
-  var h2s = resultArea.querySelectorAll("h2");
-  for (var i = 0; i < h2s.length; i++) {
-    inject5W1HButton(h2s[i]);
+  const h2s = resultArea.querySelectorAll("h2");
+  for (let i = 0; i < h2s.length; i++) {
+    inject5W1HButton(h2s[i], sessionId);
   }
 }
 
-function inject5W1HButton(h2) {
-  if (h2.parentElement && h2.parentElement.classList.contains("chapter-heading-row")) return;
+function inject5W1HButton(h2, sid) {
+  if (h2.parentElement?.classList.contains("chapter-heading-row")) return;
 
-  var title = h2.textContent || "";
+  const title = h2.textContent || "";
 
-  var row = document.createElement("span");
+  const row = document.createElement("span");
   row.className = "chapter-heading-row";
   h2.parentNode.insertBefore(row, h2);
   row.appendChild(h2);
 
-  var btn = document.createElement("button");
+  const btn = document.createElement("button");
   btn.className = "btn-5w1h";
-  btn.textContent = "5W1H";
+  btn.textContent = _.btn5W1H;
   btn.dataset.chapter = title;
   row.appendChild(btn);
 
-  var summaryBox = document.createElement("div");
+  const summaryBox = document.createElement("div");
   summaryBox.className = "summary-box";
-  var summaryHeader = document.createElement("div");
+  const summaryHeader = document.createElement("div");
   summaryHeader.className = "summary-header";
-  summaryHeader.textContent = "5W1H 摘要";
-  var summaryBody = document.createElement("div");
+  summaryHeader.textContent = _.labelSummary;
+  const summaryBody = document.createElement("div");
   summaryBody.className = "summary-body";
   summaryBox.appendChild(summaryHeader);
   summaryBox.appendChild(summaryBody);
 
   row.parentNode.insertBefore(summaryBox, row.nextSibling);
 
-  chapterSummaryMap.set(title, { button: btn, box: summaryBox, body: summaryBody });
+  chapterSummaryMap.set(title, { button: btn, box: summaryBox, body: summaryBody, sessionId: sid });
 
-  btn.addEventListener("click", function () { handle5W1HClick(title); });
-  summaryHeader.addEventListener("click", function () { toggleSummaryBox(title); });
+  btn.addEventListener("click", () => handle5W1HClick(title));
+  summaryHeader.addEventListener("click", () => toggleSummaryBox(title));
 }
 
 // =============================================================================
-// 5W1H Handler — Browser AI API Call
+// 5W1H Handler
 // =============================================================================
 
 async function handle5W1HClick(chapterTitle) {
-  var entry = chapterSummaryMap.get(chapterTitle);
+  const entry = chapterSummaryMap.get(chapterTitle);
   if (!entry) return;
 
   if (entry.body.children.length > 0) {
@@ -256,21 +284,21 @@ async function handle5W1HClick(chapterTitle) {
   }
 
   entry.button.disabled = true;
-  entry.button.textContent = "加载中...";
+  entry.button.textContent = _.btnLoading;
 
   try {
-    var data = await generate5W1H(chapterTitle);
+    const data = await generate5W1H(entry.sessionId, chapterTitle);
 
-    var labels = {
-      who: "Who（人物）", what: "What（事件）", when: "When（时间）",
-      where: "Where（地点）", why: "Why（原因）", how: "How（方式）"
+    const labels = {
+      who: _.labelWho, what: _.labelWhat, when: _.labelWhen,
+      where: _.labelWhere, why: _.labelWhy, how: _.labelHow
     };
-    var keys = ["who", "what", "when", "where", "why", "how"];
+    const keys = ["who", "what", "when", "where", "why", "how"];
 
-    for (var i = 0; i < keys.length; i++) {
-      var key = keys[i];
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
       if (data[key]) {
-        var item = document.createElement("div");
+        const item = document.createElement("div");
         item.className = "summary-item";
         item.innerHTML = "<strong>" + labels[key] + "：</strong>" + escapeHtml(data[key]);
         entry.body.appendChild(item);
@@ -278,7 +306,7 @@ async function handle5W1HClick(chapterTitle) {
     }
     entry.box.classList.add("open");
   } catch (err) {
-    entry.body.innerHTML = "<div class=\"summary-item\">加载失败：" + escapeHtml(err.message) + "</div>";
+    entry.body.innerHTML = '<div class="summary-item">' + _.errLoadFailed(err.message) + '</div>';
     entry.box.classList.add("open");
   } finally {
     entry.button.disabled = false;
@@ -287,7 +315,7 @@ async function handle5W1HClick(chapterTitle) {
 }
 
 function toggleSummaryBox(chapterTitle) {
-  var entry = chapterSummaryMap.get(chapterTitle);
+  const entry = chapterSummaryMap.get(chapterTitle);
   if (!entry) return;
   if (entry.body.children.length > 0) entry.box.classList.toggle('open');
 }
@@ -297,7 +325,7 @@ function toggleSummaryBox(chapterTitle) {
 // =============================================================================
 
 function escapeHtml(str) {
-  var div = document.createElement('div');
+  const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
 }
@@ -311,18 +339,28 @@ function showError(message) {
 // Event Listeners
 // =============================================================================
 
+// Set localized text on static DOM elements
+(function initLocale() {
+  const loadingText = document.querySelector(".loading-text");
+  if (loadingText) loadingText.textContent = _.loadingText;
+  const geminiOpt = document.querySelector("#ai-provider option[value=\"gemini\"]");
+  if (geminiOpt) geminiOpt.textContent = _.providerGemini;
+  const dsOpt = document.querySelector("#ai-provider option[value=\"deepseek\"]");
+  if (dsOpt) dsOpt.textContent = _.providerDeepseek;
+})();
+
 youtubeUrlInput.addEventListener('input', validateUrl);
 youtubeUrlInput.addEventListener('blur', validateUrl);
 
-generateBtn.addEventListener('click', function () {
+generateBtn.addEventListener('click', () => {
   if (isGenerating) return;
-  var url = youtubeUrlInput.value.trim();
-  if (!url) { urlErrorEl.textContent = '请输入 YouTube 链接'; return; }
+  const url = youtubeUrlInput.value.trim();
+  if (!url) { urlErrorEl.textContent = _.errEmptyURL; return; }
   if (!validateUrl()) return;
-  var rule = customRulesInput.value.trim();
+  const rule = customRulesInput.value.trim();
   startGeneration(url, rule);
 });
 
-youtubeUrlInput.addEventListener('keydown', function (e) {
+youtubeUrlInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); generateBtn.click(); }
 });

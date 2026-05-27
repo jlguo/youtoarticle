@@ -1,29 +1,6 @@
 import { buildArticlePrompt, build5W1HPrompt } from "./prompts";
 import { GEMINI_BASE_URL_STREAM, GEMINI_BASE_URL_NONSTREAM } from "./config";
-
-function corsResponse(body: ReadableStream | null, contentType: string, status = 200): Response {
-  return new Response(body, {
-    status,
-    headers: {
-      "Content-Type": contentType,
-      "Cache-Control": status === 200 && contentType === "text/event-stream" ? "no-cache" : "",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
-}
-
-function errorResponse(message: string, status: number): Response {
-  return corsResponse(
-    new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(JSON.stringify({ error: message })));
-        controller.close();
-      },
-    }),
-    "application/json",
-    status,
-  );
-}
+import { corsResponse, errorResponse } from "./api-client";
 
 export async function streamArticle(subtitle: string, rule: string | undefined, apiKey: string): Promise<Response> {
   const prompt = buildArticlePrompt(subtitle, rule);

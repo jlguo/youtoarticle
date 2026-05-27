@@ -4,35 +4,14 @@ import { streamArticle as deepseekStreamArticle, generate5W1H as deepseek5W1H } 
 import {
   ROUTE_GENERATE,
   ROUTE_5W1H,
-  CORS_ALLOW_ORIGIN,
-  CORS_ALLOW_METHODS,
-  CORS_ALLOW_HEADERS,
   PROVIDER_GEMINI,
   PROVIDER_DEEPSEEK,
+  ARTICLE_KV_PREFIX,
 } from "./config";
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-function corsHeaders(): Record<string, string> {
-  return {
-    "Access-Control-Allow-Origin": CORS_ALLOW_ORIGIN,
-    "Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
-    "Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function toEnv(raw: Record<string, unknown>): Env {
-  return raw as unknown as Env;
-}
+import { jsonResponse, corsHeaders } from "./response";
+import { parseJSONBody, getStringField } from "./validation";
+import { teeAndSaveArticle } from "./tee";
+import { detectLang, t } from "./locale";
 
 type AIProvider = typeof PROVIDER_GEMINI | typeof PROVIDER_DEEPSEEK;
 
@@ -46,106 +25,89 @@ function getProvider(request: Request, env: Env): AIProvider {
 }
 
 function getAPIKey(provider: AIProvider, env: Env): string {
-  if (provider === PROVIDER_DEEPSEEK) {
-    return env.DEEPSEEK_API_KEY!;
-  }
-  return env.GEMINI_API_KEY;
+  return provider === PROVIDER_DEEPSEEK ? env.DEEPSEEK_API_KEY! : env.GEMINI_API_KEY;
 }
 
-export async function handleRequest(
-  request: Request,
-  rawEnv: Record<string, unknown>,
-  _ctx: unknown,
-): Promise<Response> {
+export async function handleRequest(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const { pathname } = url;
+  const lang = detectLang(request);
+  const _ = t(lang);
 
   if (request.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: { ...corsHeaders() },
-    });
+    return new Response(null, { status: 204, headers: { ...corsHeaders() } });
   }
 
   if (request.method === "POST" && pathname === ROUTE_GENERATE) {
     try {
-      let body: unknown;
-      try {
-        body = await request.json();
-      } catch {
-        return jsonResponse({ error: "Invalid JSON body" }, 400);
-      }
+      const body = await parseJSONBody(request, lang);
+      if (body instanceof Response) return body;
 
-      if (!isRecord(body)) {
-        return jsonResponse({ error: "Request body must be a JSON object" }, 400);
-      }
-
-      const youtubeUrl =
-        typeof body.youtubeUrl === "string" ? body.youtubeUrl : undefined;
-
+      const youtubeUrl = getStringField(body, "youtubeUrl");
       if (!youtubeUrl) {
-        return jsonResponse(
-          { error: "Missing required field: youtubeUrl" },
-          400,
-        );
+        return jsonResponse({ error: _.missingField("youtubeUrl") }, 400);
       }
 
       const videoId = extractVideoId(youtubeUrl);
       if (!videoId) {
-        return jsonResponse(
-          {
-            error:
-              "无效的 YouTube 链接格式。请提供有效的 youtube.com 或 youtu.be 链接。",
-          },
-          400,
-        );
+        return jsonResponse({ error: _.invalidYouTubeURL }, 400);
       }
 
-      const env = toEnv(rawEnv);
       const { text: subtitle } = await fetchSubtitlesWithFallback(videoId, env);
-
-      const rule =
-        typeof body.rule === "string" ? body.rule : undefined;
+      const rule = getStringField(body, "rule");
       const provider = getProvider(request, env);
       const apiKey = getAPIKey(provider, env);
 
+      let aiResponse: Response;
       if (provider === PROVIDER_DEEPSEEK) {
-        return await deepseekStreamArticle(subtitle, rule, apiKey);
+        aiResponse = await deepseekStreamArticle(subtitle, rule, apiKey);
+      } else {
+        aiResponse = await geminiStreamArticle(subtitle, rule, apiKey);
       }
-      return await geminiStreamArticle(subtitle, rule, apiKey);
+
+      if (!aiResponse.ok || !aiResponse.body) return aiResponse;
+
+      const sessionId = crypto.randomUUID();
+      const teeBody = teeAndSaveArticle(aiResponse.body, sessionId, env, subtitle, rule);
+
+      return new Response(teeBody, {
+        status: aiResponse.status,
+        headers: {
+          ...Object.fromEntries(aiResponse.headers.entries()),
+          "X-Session-Id": sessionId,
+        },
+      });
     } catch (e) {
-      const message =
-        e instanceof Error ? e.message : "An unexpected error occurred";
+      const message = e instanceof Error ? e.message : _.unexpectedError;
       return jsonResponse({ error: message }, 500);
     }
   }
 
   if (request.method === "POST" && pathname === ROUTE_5W1H) {
     try {
-      let body: unknown;
+      const body = await parseJSONBody(request, lang);
+      if (body instanceof Response) return body;
+
+      const sessionId = getStringField(body, "sessionId");
+      const chapter = getStringField(body, "chapter");
+      if (!sessionId || !chapter) {
+        const missing = !sessionId ? "sessionId" : "chapter";
+        return jsonResponse({ error: _.missingField(missing) }, 400);
+      }
+
+      const stored = await env.SESSION_KV.get(`${ARTICLE_KV_PREFIX}${sessionId}`);
+      if (!stored) {
+        return jsonResponse({ error: _.sessionNotFound }, 404);
+      }
+
+      let fullText: string;
       try {
-        body = await request.json();
+        const data = JSON.parse(stored);
+        fullText = data.fullText || data;
       } catch {
-        return jsonResponse({ error: "Invalid JSON body" }, 400);
+        fullText = stored;
       }
 
-      if (!isRecord(body)) {
-        return jsonResponse({ error: "Request body must be a JSON object" }, 400);
-      }
-
-      const chapter =
-        typeof body.chapter === "string" ? body.chapter : undefined;
-      const fullText =
-        typeof body.fullText === "string" ? body.fullText : undefined;
-
-      if (!chapter || !fullText) {
-        return jsonResponse(
-          { error: "Missing required field: chapter or fullText" },
-          400,
-        );
-      }
-
-      const env = toEnv(rawEnv);
       const provider = getProvider(request, env);
       const apiKey = getAPIKey(provider, env);
 
@@ -154,11 +116,10 @@ export async function handleRequest(
       }
       return await gemini5W1H(chapter, fullText, apiKey);
     } catch (e) {
-      const message =
-        e instanceof Error ? e.message : "An unexpected error occurred";
+      const message = e instanceof Error ? e.message : _.unexpectedError;
       return jsonResponse({ error: message }, 500);
     }
   }
 
-  return jsonResponse({ error: "Not Found" }, 404);
+  return jsonResponse({ error: _.notFound }, 404);
 }

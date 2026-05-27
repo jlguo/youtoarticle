@@ -7,7 +7,11 @@
     "dev": "node build.mjs && npx wrangler dev --port 34997",
     "build": "node build.mjs",
     "deploy": "node build.mjs && npx wrangler deploy",
-    "typecheck": "npx tsc --noEmit"
+    "typecheck": "npx tsc --noEmit",
+    "test": "node build.mjs && vitest run",
+    "test:e2e": "node build.mjs && npx playwright test",
+    "test:all": "node build.mjs && vitest run && npx playwright test",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@playwright/test": "^1.60.0",
@@ -18,6 +22,7 @@
     "@cloudflare/workers-types": "^4.20250525.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.8.0",
+    "vitest": "^4.1.7",
     "wrangler": "^4.14.0"
   }
 }

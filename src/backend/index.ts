@@ -2,7 +2,7 @@
 import { handleRequest } from "./router";
 
 export default {
-  async fetch(request: Request, env: Record<string, unknown>, _ctx: unknown): Promise<Response> {
-    return handleRequest(request, env, _ctx);
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    return handleRequest(request, env);
   },
 };

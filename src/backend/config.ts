@@ -20,6 +20,10 @@ export const INNERTUBE_CLIENT_VERSION = "2.20260206.01.00";
 export const SESSION_KV_PREFIX = "session:";
 export const SESSION_TTL_SECONDS = 3600;
 
+// Article cache: keyed by session ID, holds the full generated text for 5W1H
+export const ARTICLE_KV_PREFIX = "article:";
+export const ARTICLE_TTL_SECONDS = 86400; // 24 hours
+
 // Subtitle cache: keyed by video ID, avoids re-fetching from YouTube
 export const SUB_CACHE_PREFIX = "sub:";
 export const SUB_CACHE_TTL_SECONDS = 604800; // 7 days

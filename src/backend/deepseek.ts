@@ -6,30 +6,7 @@ import {
   DEEPSEEK_5W1H_TEMPERATURE,
   DEEPSEEK_5W1H_MAX_TOKENS,
 } from "./config";
-
-function corsResponse(body: ReadableStream | null, contentType: string, status = 200): Response {
-  return new Response(body, {
-    status,
-    headers: {
-      "Content-Type": contentType,
-      "Cache-Control": status === 200 && contentType === "text/event-stream" ? "no-cache" : "",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
-}
-
-function errorResponse(message: string, status: number): Response {
-  return corsResponse(
-    new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(JSON.stringify({ error: message })));
-        controller.close();
-      },
-    }),
-    "application/json",
-    status,
-  );
-}
+import { corsResponse, errorResponse } from "./api-client";
 
 export async function streamArticle(subtitle: string, rule: string | undefined, apiKey: string): Promise<Response> {
   const messages = buildArticleMessages(subtitle, rule);
