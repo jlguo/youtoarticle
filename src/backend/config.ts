@@ -5,7 +5,6 @@
 
 // YouTube
 // =============================================================================
-export const YOUTUBE_LANG_PRIORITY = ["en"];
 export const YOUTUBE_FETCH_TIMEOUT_MS = 5_000;
 export const YOUTUBE_TIMEDTEXT_URL = "https://www.youtube.com/api/timedtext";
 

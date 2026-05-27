@@ -4,7 +4,6 @@
 import { Innertube } from 'youtubei.js';
 import { DEMO_SUBTITLE } from '../fallback-subtitles/demo';
 import {
-  YOUTUBE_LANG_PRIORITY,
   YOUTUBE_FETCH_TIMEOUT_MS,
   YOUTUBE_TIMEDTEXT_URL,
   SUB_CACHE_PREFIX,
@@ -113,7 +112,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  *
  * First tries the Transcript API for structured segment data,
  * then falls back to raw caption track XML parsing.
- * Language fallback via YOUTUBE_LANG_PRIORITY, then first available.
+ * Uses first available transcript language.
  *
  * Uses custom fetch with AbortSignal.timeout() to prevent hanging
  * in restricted network environments (e.g., local workerd dev).
@@ -144,17 +143,7 @@ export async function fetchSubtitlesViaInnertube(videoId: string): Promise<strin
     const transcriptInfo = await info.getTranscript();
     const availableLangs = transcriptInfo.languages as string[];
 
-    // Find best matching language
-    let selectedLang = '';
-    for (const lang of YOUTUBE_LANG_PRIORITY) {
-      if (availableLangs.includes(lang)) {
-        selectedLang = lang;
-        break;
-      }
-    }
-    if (!selectedLang && availableLangs.length > 0) {
-      selectedLang = availableLangs[0];
-    }
+    const selectedLang = availableLangs.length > 0 ? availableLangs[0] : '';
     if (!selectedLang) {
       throw new Error('No transcript languages available');
     }
@@ -199,18 +188,7 @@ export async function fetchSubtitlesViaInnertube(videoId: string): Promise<strin
 
   const tracks = info.captions.caption_tracks;
 
-  // Find best language match
-  let selectedTrack: (typeof tracks)[0] | null = null;
-  for (const lang of YOUTUBE_LANG_PRIORITY) {
-    const track = tracks.find((t) => t.language_code === lang);
-    if (track) {
-      selectedTrack = track;
-      break;
-    }
-  }
-  if (!selectedTrack && tracks.length > 0) {
-    selectedTrack = tracks[0];
-  }
+  const selectedTrack = tracks.length > 0 ? tracks[0] : null;
   if (!selectedTrack) {
     throw new Error('No caption track available');
   }
@@ -238,7 +216,7 @@ export async function fetchSubtitlesViaInnertube(videoId: string): Promise<strin
  * Much less CPU-intensive than youtubei.js — a single fetch + XML parse.
  */
 async function fetchSubtitlesViaTimedtext(videoId: string): Promise<string> {
-  for (const lang of YOUTUBE_LANG_PRIORITY) {
+  for (const lang of ["en", "zh"]) {
     const url = `${YOUTUBE_TIMEDTEXT_URL}?v=${videoId}&lang=${lang}`;
     const response = await fetch(url, {
       signal: AbortSignal.timeout(YOUTUBE_FETCH_TIMEOUT_MS),
