@@ -16,3 +16,10 @@ enabled = true
 
 [placement]
 mode = "smart"
+
+[env.staging]
+name = "youtoarticle-staging"
+
+[[env.staging.kv_namespaces]]
+binding = "SESSION_KV"
+id = "a9f21b2b062f4965aaf98a5991fff2c9"

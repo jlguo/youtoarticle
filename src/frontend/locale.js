@@ -22,8 +22,9 @@ const zh = {
   errEmptyURL: "请输入 YouTube 链接",
   errInvalidURL: "请输入有效的 YouTube 链接（youtube.com/watch?v= 或 youtu.be/）",
 
-  providerGemini: "Gemini 2.5 Flash（默认）",
-  providerDeepseek: "DeepSeek V4 Flash",
+  providerGemini: "Gemini - gemini-2.5-flash（默认）",
+  providerGeminiLite: "Gemini - gemini-3.1-flash-lite",
+  providerDeepseek: "DeepSeek - deepseek-v4-flash",
 };
 
 const en = {
@@ -50,8 +51,9 @@ const en = {
   errEmptyURL: "Please enter a YouTube URL",
   errInvalidURL: "Invalid YouTube URL (expected youtube.com/watch?v= or youtu.be/)",
 
-  providerGemini: "Gemini 2.5 Flash (default)",
-  providerDeepseek: "DeepSeek V4 Flash",
+  providerGemini: "Gemini - gemini-2.5-flash (default)",
+  providerGeminiLite: "Gemini - gemini-3.1-flash-lite",
+  providerDeepseek: "DeepSeek - deepseek-v4-flash",
 };
 
 const locales = { zh, en };

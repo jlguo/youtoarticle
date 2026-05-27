@@ -6,6 +6,8 @@ import {
   ROUTE_5W1H,
   PROVIDER_GEMINI,
   PROVIDER_DEEPSEEK,
+  GEMINI_MODEL,
+  GEMINI_MODEL_LITE,
   ARTICLE_KV_PREFIX,
 } from "./config";
 import { jsonResponse, corsHeaders } from "./response";
@@ -17,11 +19,16 @@ type AIProvider = typeof PROVIDER_GEMINI | typeof PROVIDER_DEEPSEEK;
 
 function getProvider(request: Request, env: Env): AIProvider {
   const url = new URL(request.url);
-  const param = url.searchParams.get("provider");
-  if (param === PROVIDER_DEEPSEEK && env.DEEPSEEK_API_KEY) {
+  const model = url.searchParams.get("model") || "";
+  if (model.startsWith("deepseek") && env.DEEPSEEK_API_KEY) {
     return PROVIDER_DEEPSEEK;
   }
   return PROVIDER_GEMINI;
+}
+
+function getModel(request: Request): string {
+  const url = new URL(request.url);
+  return url.searchParams.get("model") || GEMINI_MODEL;
 }
 
 function getAPIKey(provider: AIProvider, env: Env): string {
@@ -62,7 +69,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       if (provider === PROVIDER_DEEPSEEK) {
         aiResponse = await deepseekStreamArticle(subtitle, rule, apiKey);
       } else {
-        aiResponse = await geminiStreamArticle(subtitle, rule, apiKey);
+        aiResponse = await geminiStreamArticle(subtitle, rule, apiKey, getModel(request));
       }
 
       if (!aiResponse.ok || !aiResponse.body) return aiResponse;
@@ -115,7 +122,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       if (provider === PROVIDER_DEEPSEEK) {
         return await deepseek5W1H(chapter, fullText, apiKey);
       }
-      return await gemini5W1H(chapter, fullText, apiKey);
+      return await gemini5W1H(chapter, fullText, apiKey, getModel(request));
     } catch (e) {
       const message = e instanceof Error ? e.message : _.unexpectedError;
       return jsonResponse({ error: message }, 500);

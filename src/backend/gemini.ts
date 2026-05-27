@@ -1,11 +1,11 @@
 import { buildArticlePrompt, build5W1HPrompt } from "./prompts";
-import { GEMINI_BASE_URL_STREAM, GEMINI_BASE_URL_NONSTREAM } from "./config";
+import { geminiStreamURL, geminiNonStreamURL } from "./config";
 import { corsResponse, errorResponse } from "./api-client";
 import { jsonResponse } from "./response";
 
-export async function streamArticle(subtitle: string, rule: string | undefined, apiKey: string): Promise<Response> {
+export async function streamArticle(subtitle: string, rule: string | undefined, apiKey: string, model: string): Promise<Response> {
   const prompt = buildArticlePrompt(subtitle, rule);
-  const res = await fetch(`${GEMINI_BASE_URL_STREAM}?alt=sse&key=${apiKey}`, {
+  const res = await fetch(`${geminiStreamURL(model)}?alt=sse&key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
@@ -19,9 +19,9 @@ export async function streamArticle(subtitle: string, rule: string | undefined, 
   return corsResponse(res.body, "text/event-stream");
 }
 
-export async function generate5W1H(chapter: string, fullText: string, apiKey: string): Promise<Response> {
+export async function generate5W1H(chapter: string, fullText: string, apiKey: string, model: string): Promise<Response> {
   const prompt = build5W1HPrompt(chapter, fullText);
-  const res = await fetch(`${GEMINI_BASE_URL_NONSTREAM}?key=${apiKey}`, {
+  const res = await fetch(`${geminiNonStreamURL(model)}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),

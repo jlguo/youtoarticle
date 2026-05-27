@@ -132,8 +132,9 @@ function feedContent(text) {
   }
 }
 
-async function streamArticle(youtubeUrl, rule, provider, signal) {
-  const response = await fetch("/api/generate?provider=" + provider, {
+async function streamArticle(youtubeUrl, rule, model, signal) {
+  const qs = `model=${model}`;
+  const response = await fetch("/api/generate?" + qs, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ youtubeUrl, rule: rule || undefined }),
@@ -659,8 +660,8 @@ async function handle5W1HClick(title) {
 
   try {
     if (!entrySessionId) throw new Error('No session');
-    const provider = document.getElementById('ai-provider').value;
-    const resp = await fetch(`/api/5w1h?provider=${provider}`, {
+    const model = document.getElementById('ai-provider').value;
+    const resp = await fetch(`/api/5w1h?model=${model}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chapter: title, sessionId: entrySessionId }),
@@ -755,10 +756,10 @@ generateBtn.addEventListener('click', async () => {
   abortController = new AbortController();
 
   const rule = customRulesInput.value;
-  const provider = document.getElementById('ai-provider').value;
+  const model = document.getElementById('ai-provider').value;
 
   try {
-    await streamArticle(url.trim(), rule, provider, abortController.signal);
+    await streamArticle(url.trim(), rule, model, abortController.signal);
   } catch (err) {
     if (err.name === 'AbortError') return;
     streamingEl.classList.add('hidden');

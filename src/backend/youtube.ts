@@ -304,3 +304,41 @@ export async function fetchSubtitlesWithFallback(videoId: string, env: Env): Pro
 
   return { text: result, fromFallback };
 }
+
+/**
+ * Fetch video metadata (title, channel, duration) via Innertube.
+ */
+export async function fetchVideoInfo(videoId: string): Promise<{ title: string; channel: string; duration: string } | null> {
+  try {
+    const innertube = await Innertube.create({
+      fetch: (input, init) => {
+        const { WEBSHARE_PROXY_HOST, WEBSHARE_PROXY_PORT, WEBSHARE_PROXY_USERNAME, WEBSHARE_PROXY_PASSWORD } = process.env as Record<string, string | undefined>;
+        if (WEBSHARE_PROXY_HOST && WEBSHARE_PROXY_PORT) {
+          return fetch(input, {
+            ...init,
+            cf: {
+              resolveOverride: `${WEBSHARE_PROXY_HOST}:${WEBSHARE_PROXY_PORT}`,
+            },
+            headers: {
+              ...(init?.headers || {}),
+              ...(WEBSHARE_PROXY_USERNAME ? { 'Proxy-Authorization': 'Basic ' + btoa(`${WEBSHARE_PROXY_USERNAME}:${WEBSHARE_PROXY_PASSWORD || ''}`) } : {}),
+            },
+          });
+        }
+        return fetch(input, init);
+      },
+    });
+    const info = await innertube.getInfo(videoId);
+    const basic = info.basic_info;
+    const seconds = basic.duration ?? 0;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return {
+      title: (basic.title as string) || videoId,
+      channel: (basic.author as string) || 'YouTube',
+      duration: `${mins}:${secs.toString().padStart(2, '0')}`,
+    };
+  } catch {
+    return null;
+  }
+}
