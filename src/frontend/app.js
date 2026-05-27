@@ -415,7 +415,7 @@ function wrapChapterSection(h2, index) {
   h2.id = id;
 
   const section = document.createElement('section');
-  section.className = 'chapter-section';
+  section.className = 'chapter-section open';
   section.dataset.chapterId = id;
 
   h2.parentNode.insertBefore(section, h2);
@@ -465,8 +465,8 @@ function wrapChapterSection(h2, index) {
 
   // Move all non-heading, non-summary children into chapter-content
   while (section.children.length > 2) {
-    const child = section.children[2];
-    if (child === body || child.classList.contains('summary-box')) break;
+    const child = section.children[1];
+    if (child === body) break;
     content.appendChild(child);
   }
 
@@ -642,7 +642,11 @@ async function handle5W1HClick(title) {
 
   const { box, body, sessionId: entrySessionId } = entry;
 
-  // If already has content, toggle
+  const section = box.closest('.chapter-section');
+  if (section && !section.classList.contains('open')) {
+    section.classList.add('open');
+  }
+
   if (box.dataset.loaded === 'true') {
     box.classList.toggle('open');
     return;
@@ -655,7 +659,8 @@ async function handle5W1HClick(title) {
 
   try {
     if (!entrySessionId) throw new Error('No session');
-    const resp = await fetch(`/api/5w1h`, {
+    const provider = document.getElementById('ai-provider').value;
+    const resp = await fetch(`/api/5w1h?provider=${provider}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chapter: title, sessionId: entrySessionId }),
@@ -795,8 +800,16 @@ function expandSidebar() {
 btnCollapseSidebar.addEventListener('click', collapseSidebar);
 btnExpandSidebar.addEventListener('click', expandSidebar);
 
-// =============================================================================
-// Initialize
-// =============================================================================
+document.getElementById('btn-login').addEventListener('click', () => {
+  const landing = document.getElementById('landing');
+  landing.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+  landing.style.opacity = '0';
+  landing.style.transform = 'scale(1.05)';
+  setTimeout(() => {
+    landing.style.display = 'none';
+    document.getElementById('app-container').classList.remove('hidden');
+  }, 400);
+});
+
 applyFontSize();
 updateDemoLinkState();
