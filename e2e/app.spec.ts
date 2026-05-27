@@ -80,7 +80,7 @@ test.describe(`YouTube Article Generator E2E [${PROVIDER}]`, () => {
 
   test("page loads with all form elements", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".site-title")).toHaveText("YouTube 文章生成器");
+    await expect(page.locator("header h1")).toHaveText("YouToArticle");
     await expect(page.locator("#youtube-url")).toBeVisible();
     await expect(page.locator("#custom-rules")).toBeVisible();
     await expect(page.locator("#ai-provider")).toBeVisible();

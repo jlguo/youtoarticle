@@ -1,10 +1,10 @@
 const zh = {
-  btnGenerate: "开始生成",
+  btnGenerate: "开始生成文章",
   btnGenerating: "生成中...",
   btn5W1H: "5W1H",
   btnLoading: "加载中...",
 
-  labelSummary: "5W1H 摘要",
+  labelSummary: "5W1H 智能总结",
   labelWho: "Who（人物）",
   labelWhat: "What（事件）",
   labelWhen: "When（时间）",
@@ -27,7 +27,7 @@ const zh = {
 };
 
 const en = {
-  btnGenerate: "Generate",
+  btnGenerate: "Generate Article",
   btnGenerating: "Generating...",
   btn5W1H: "5W1H",
   btnLoading: "Loading...",

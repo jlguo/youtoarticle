@@ -53,7 +53,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
         return jsonResponse({ error: _.invalidYouTubeURL }, 400);
       }
 
-      const { text: subtitle } = await fetchSubtitlesWithFallback(videoId, env);
+      const { text: subtitle, fromFallback } = await fetchSubtitlesWithFallback(videoId, env);
       const rule = getStringField(body, "rule");
       const provider = getProvider(request, env);
       const apiKey = getAPIKey(provider, env);
@@ -75,6 +75,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
         headers: {
           ...Object.fromEntries(aiResponse.headers.entries()),
           "X-Session-Id": sessionId,
+          "X-From-Fallback": String(fromFallback),
         },
       });
     } catch (e) {

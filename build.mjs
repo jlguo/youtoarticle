@@ -1,8 +1,16 @@
 import * as esbuild from "esbuild";
 import { copyFileSync, mkdirSync } from "fs";
+import { execSync } from "child_process";
 
 mkdirSync("public", { recursive: true });
 
+// Build Tailwind CSS
+execSync(
+  "./node_modules/.bin/tailwindcss -i src/frontend/tailwind.css -o public/app.css --minify",
+  { stdio: "inherit" },
+);
+
+// Bundle JS
 await esbuild.build({
   entryPoints: ["src/frontend/app.js"],
   outdir: "public",
@@ -13,6 +21,5 @@ await esbuild.build({
 });
 
 copyFileSync("src/frontend/index.html", "public/index.html");
-copyFileSync("src/frontend/app.css", "public/app.css");
 
 console.log("Frontend bundled successfully.");

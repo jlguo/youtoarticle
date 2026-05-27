@@ -4,3 +4,4 @@ public/
 .wrangler/
 dist/
 .claude/settings.local.json
+.sisyphus/

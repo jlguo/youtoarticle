@@ -1,4 +1,4 @@
-# YouTube → AI 文章生成器
+# YouToArticle
 
 输入 YouTube 链接，AI 提取字幕并生成结构化中文文章，支持流式渲染和章节级 5W1H 摘要。
 

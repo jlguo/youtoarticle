@@ -3,71 +3,341 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YouTube 文章生成器</title>
+  <title>YouToArticle</title>
   <link rel="stylesheet" href="/app.css">
 </head>
-<body>
-  <div class="container">
-    <header class="header">
-      <h1 class="site-title">YouTube 文章生成器</h1>
-      <p class="site-desc">输入 YouTube 链接，AI 自动生成中文文章</p>
-    </header>
+<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900 antialiased">
 
-    <section class="input-section">
-      <div class="form-group">
-        <label for="youtube-url">YouTube 链接 <span class="required">*</span></label>
-        <input
-          type="url"
-          id="youtube-url"
-          class="url-input"
-          placeholder="https://www.youtube.com/watch?v=...  支持 youtu.be、embed 格式"
-          required
-          autofocus
-        >
-        <span class="input-error" id="url-error" role="alert"></span>
-      </div>
-      <div class="form-group">
-        <label for="custom-rules">自定义生成要求（可选）</label>
-        <textarea
-          id="custom-rules"
-          class="rules-textarea"
-          placeholder="例如：用幽默风格写给初学者 / 输出 3 点核心观点 / 以访谈对话形式呈现"
-          rows="3"
-        ></textarea>
-      </div>
-      <div class="form-group">
-        <label for="ai-provider">AI 模型</label>
-        <select id="ai-provider" class="provider-select">
-          <option value="gemini">Gemini 2.5 Flash（默认）</option>
-          <option value="deepseek">DeepSeek V4 Flash</option>
-        </select>
-      </div>
-      <button id="generate-btn" class="btn-primary">开始生成</button>
-    </section>
+  <!-- Toast -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2"></div>
 
-    <details class="tips-section" open>
-      <summary class="tips-summary">使用提示</summary>
-      <div class="tips-body">
-        <p><strong>支持的链接格式</strong>：<code>youtube.com/watch?v=</code>、<code>youtu.be/</code>、<code>youtube.com/embed/</code></p>
-        <p><strong>自定义要求怎么写</strong>：描述你想要的输出效果，比如——任务类型（总结 / 对话 / 观点提炼）、输出风格（幽默 / 学术 / 通俗）、目标受众（初学者 / 专业人士）、约束条件（限 500 字 / 3 个要点）</p>
-        <p><strong>生成时间</strong>：通常 10~30 秒，取决于视频字幕长度和 AI 响应速度</p>
-        <p><strong>5W1H 摘要</strong>：文章生成后每个章节标题旁会出现 <span class="mini-badge">5W1H</span> 按钮，点击可查看该章节的 Who / What / When / Where / Why / How 分析</p>
-        <p><strong>AI 模型</strong>：默认 Gemini 2.5 Flash（免费），也可切换 DeepSeek V4 Flash</p>
-        <p><strong>有效期</strong>：文章生成后 24 小时内可查看 5W1H 摘要，超时需重新生成</p>
+  <!-- Header -->
+  <header class="sticky top-0 z-40 border-b bg-white/80 backdrop-blur-md shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-gradient-to-br from-red-500 to-pink-500 rounded-xl shadow-lg shadow-red-500/20">
+          <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><polygon points="10 15 15 12 10 9"/></svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-semibold">YouToArticle</h1>
+          <p class="text-xs text-slate-500 hidden sm:block">AI 将 YouTube 视频字幕转换为结构化文章</p>
+        </div>
       </div>
-    </details>
-
-    <div id="loading" class="loading-indicator" style="display: none;">
-      <span class="spinner"></span>
-      <span class="loading-text">正在生成文章...</span>
     </div>
+  </header>
 
-    <div id="error" class="error-message" style="display: none;" role="alert"></div>
+  <!-- Main -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 lg:py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 lg:gap-6">
 
-    <section id="result" class="result-section">
-      <!-- Content rendered dynamically during streaming -->
-    </section>
-  </div>
+      <!-- Left: Input Panel (span 2) -->
+      <aside id="input-panel" class="lg:col-span-2 flex flex-col gap-4">
+        <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24 relative">
+          <button id="btn-collapse-sidebar" class="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all lg:flex hidden" title="收起侧栏">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9-3 3 3 3"/></svg>
+          </button>
+          <div class="space-y-4 sm:space-y-6">
+            <!-- #22: URL label with Link2 icon inline — no card header -->
+            <div>
+              <label class="block mb-2">
+                <span class="flex items-center gap-2 text-slate-700">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  YouTube 视频链接
+                </span>
+              </label>
+              <div class="space-y-2">
+                <!-- #10: Input styles — border-slate-200, bg-white, py-3, focus:ring-blue-100, text-base -->
+                <input type="url" id="youtube-url"
+                  class="w-full px-4 py-3 text-base border border-slate-200 rounded-lg bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                  placeholder="https://www.youtube.com/watch?v=..." required autofocus>
+                <!-- #2: "使用示例链接" -->
+                <button id="btn-demo-link"
+                  class="text-xs text-blue-600 hover:text-blue-700 hover:underline disabled:text-slate-400 disabled:no-underline"
+                  disabled>使用示例链接</button>
+              </div>
+              <p class="mt-2 text-xs text-slate-500">粘贴任意 YouTube 视频链接，系统将自动提取字幕</p>
+              <span class="block mt-1 text-xs text-red-500 min-h-[1em]" id="url-error" role="alert"></span>
+
+              <!-- #1: VideoInfoCard — hidden until valid URL -->
+              <div id="video-info-card" class="hidden mt-3 animate-in">
+                <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                  <div class="flex gap-3">
+                    <div class="flex-shrink-0 w-24 h-16 bg-slate-200 rounded-lg overflow-hidden flex items-center justify-center">
+                      <svg class="w-8 h-8 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <h4 class="font-medium text-slate-900 text-sm mb-1.5 line-clamp-2" id="video-info-title">视频标题将在此显示</h4>
+                      <div class="flex items-center gap-3 text-xs text-slate-600">
+                        <div class="flex items-center gap-1">
+                          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                          <span class="truncate" id="video-info-channel">—</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          <span id="video-info-duration">—</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- #3: Advanced Options Toggle -->
+            <button id="btn-advanced-toggle"
+              class="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z"/><path d="M19 3l.5 2L21 5.5l-1.5.5L19 8l-.5-2L17 5.5l1.5-.5z"/><path d="M5 15l.5 2L7 17.5l-1.5.5L5 20l-.5-2L3 17.5l1.5-.5z"/></svg>
+              高级选项（可选）
+              <span id="btn-advanced-badge" class="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">展开</span>
+            </button>
+
+            <!-- #3: Collapsible advanced section -->
+            <div id="advanced-options" class="hidden space-y-3">
+              <div>
+                <label for="custom-rules" class="block text-sm font-medium text-slate-700 mb-1.5">自定义要求</label>
+                <textarea id="custom-rules" rows="3"
+                  class="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-lg bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition resize-y min-h-[72px]"
+                  placeholder="例如：用幽默风格写给初学者 / 输出 3 点核心观点"></textarea>
+              </div>
+              <!-- #3: Blue info card -->
+              <div class="bg-blue-50 rounded-lg p-3 text-xs text-blue-800 leading-relaxed">
+                <p class="font-medium mb-1">AI 会根据你输入的要求，结合视频字幕内容生成文章：</p>
+                <ul class="space-y-0.5 text-blue-700">
+                  <li>• <strong>文章风格</strong>：幽默、学术、通俗、技术博客</li>
+                  <li>• <strong>目标受众</strong>：初学者、专业人士、学生</li>
+                  <li>• <strong>输出格式</strong>：详细文章、要点总结、对话形式</li>
+                  <li>• <strong>特殊要求</strong>：重点分析某个观点、突出 5W1H</li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- AI Model (kept from original, not in design but functional) -->
+            <div>
+              <label for="ai-provider" class="block text-sm font-medium text-slate-700 mb-1.5">AI 模型</label>
+              <select id="ai-provider"
+                class="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-lg bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1rem] bg-[right_0.75rem_center] bg-no-repeat pr-10">
+                <option value="gemini">Gemini 2.5 Flash（默认）</option>
+                <option value="deepseek">DeepSeek V4 Flash</option>
+              </select>
+            </div>
+
+            <!-- #9: Generate Button — gradient from-blue-600 to-indigo-600, shadow-lg, py-3.5, Sparkles + "开始生成文章" -->
+            <button id="generate-btn"
+              class="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-300 disabled:to-slate-300 disabled:shadow-none disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z"/><path d="M19 3l.5 2L21 5.5l-1.5.5L19 8l-.5-2L17 5.5l1.5-.5z"/><path d="M5 15l.5 2L7 17.5l-1.5.5L5 20l-.5-2L3 17.5l1.5-.5z"/></svg>
+              <span id="generate-btn-text">开始生成文章</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- #20: Tips Card — bg-slate-50 rounded-lg p-4, 💡 + "使用提示" -->
+        <div class="bg-slate-50 rounded-lg p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-base">💡</span>
+            <h3 class="text-sm font-medium text-slate-700">使用提示</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-500 leading-relaxed">
+            <li><strong class="text-slate-600">链接格式</strong>：支持 <code class="px-1.5 py-0.5 bg-slate-200 border border-slate-300 rounded text-blue-600 text-[11px]">youtube.com/watch?v=</code> 和 <code class="px-1.5 py-0.5 bg-slate-200 border border-slate-300 rounded text-blue-600 text-[11px]">youtu.be/</code></li>
+            <li><strong class="text-slate-600">流式生成</strong>：文章通过流式输出实时显示</li>
+            <li><strong class="text-slate-600">5W1H 分析</strong>：点击章节旁的 [5W1H] 查看智能总结</li>
+          </ul>
+        </div>
+      </aside>
+
+      <div id="article-area" class="lg:col-span-3 flex gap-5 lg:gap-6">
+        <!-- Article Content -->
+        <section class="flex-1 min-w-0 flex flex-col gap-5">
+          <!-- #11: Article card wrapper — rounded-xl sm:rounded-2xl -->
+          <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+
+            <!-- #15: Empty State — redesigned -->
+            <div id="empty-state" class="flex flex-col items-center justify-center p-8 sm:p-12 min-h-[400px] sm:min-h-[600px]">
+              <div class="w-14 h-14 sm:w-16 sm:h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                <svg class="w-7 h-7 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              </div>
+              <p class="text-base font-medium text-slate-600 mb-1">准备开始</p>
+              <p class="text-sm text-slate-400">输入 YouTube 视频链接，点击生成按钮，即可看到 AI 生成的文章内容</p>
+            </div>
+
+            <!-- #8: Loading Spinner — separate state from streaming -->
+            <div id="loading-spinner" class="hidden flex-col items-center justify-center min-h-[400px] sm:min-h-[600px] gap-3">
+              <svg class="w-8 h-8 text-blue-500 animate-spin" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <p class="text-sm font-medium text-slate-600">正在生成文章...</p>
+              <p class="text-xs text-slate-400">请稍候，AI 正在基于视频字幕创作内容</p>
+            </div>
+
+            <!-- #14: Streaming Indicator — horizontal bar layout -->
+            <div id="streaming" class="hidden">
+              <div class="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
+                <div class="flex gap-1">
+                  <span class="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style="animation-delay:0ms"></span>
+                  <span class="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style="animation-delay:150ms"></span>
+                  <span class="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style="animation-delay:300ms"></span>
+                </div>
+                <div class="flex-1">
+                  <div class="text-sm font-medium text-blue-900">AI 正在生成内容</div>
+                  <div class="text-xs text-blue-600" id="streaming-subtext">使用流式输出，实时展示生成结果...</div>
+                </div>
+                <div class="flex items-center gap-2 px-3 py-1.5 bg-white/50 rounded-full">
+                  <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                  <span class="text-xs font-medium text-blue-900">生成中</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Error -->
+            <div id="error" class="hidden p-4 bg-red-50 border border-red-200 border-l-4 border-l-red-500 rounded-r-lg text-sm text-red-700 m-4" role="alert"></div>
+
+            <!-- Fallback Warning -->
+            <div id="fallback-warning" class="hidden flex items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-200 text-sm text-amber-800">
+              <span>⚠️</span> 字幕提取失败，当前展示的是演示内容，并非该视频的文章
+            </div>
+
+            <!-- #5: Article Header Bar -->
+            <div id="article-header" class="hidden bg-gradient-to-r from-slate-50 to-white border-b border-slate-200 px-4 sm:px-6 py-3">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                  <span class="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-medium flex-shrink-0">
+                    <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>已生成
+                  </span>
+                  <span class="text-xs text-slate-400 flex-shrink-0" id="header-timestamp"></span>
+                  <span class="text-sm font-medium text-slate-700 truncate hidden sm:block">视频内容文章</span>
+                  <span class="text-xs text-slate-400 flex-shrink-0 hidden sm:inline" id="header-chapter-count"></span>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  <!-- #13: Reading Enhancements — Type icon + Minus/Plus -->
+                  <div id="enhancements" class="hidden flex items-center gap-2 bg-slate-50 rounded-lg p-2 border border-slate-200">
+                    <svg class="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+                    <div class="flex items-center gap-1">
+                      <button id="btn-font-down" class="p-1.5 hover:bg-white rounded transition-colors" title="缩小字体">
+                        <svg class="w-4 h-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
+                      <button id="btn-font-reset" class="px-2 py-1 text-xs font-medium text-slate-600 hover:bg-white rounded transition-colors min-w-[3rem] text-center"><span id="fontsize-label">100%</span></button>
+                      <button id="btn-font-up" class="p-1.5 hover:bg-white rounded transition-colors" title="增大字体">
+                        <svg class="w-4 h-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <!-- #6: Share/Copy/Export buttons -->
+                  <div id="article-actions" class="hidden flex items-center gap-1">
+                    <!-- Share -->
+                    <button id="btn-share" class="p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg transition-colors" title="分享">
+                      <svg class="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                    </button>
+                    <!-- Copy with toggle -->
+                    <button id="btn-copy" class="p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg transition-colors" title="复制">
+                      <svg id="icon-copy" class="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                      <svg id="icon-copied" class="hidden w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                    <!-- Export -->
+                    <button id="btn-export" class="p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg transition-colors" title="导出">
+                      <svg class="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- #12: Metadata — gradient bg, colored icon containers -->
+            <div id="metadata" class="hidden grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 p-4 bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg border border-slate-200 m-4">
+              <div class="flex items-center gap-2">
+                <div class="p-2 rounded-lg bg-blue-50">
+                  <svg class="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <div class="flex-1 min-w-0"><div class="text-xs text-slate-500">章节数</div><div class="text-sm font-semibold text-slate-900 truncate" id="meta-chapters">0</div></div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="p-2 rounded-lg bg-green-50">
+                  <svg class="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div class="flex-1 min-w-0"><div class="text-xs text-slate-500">阅读时间</div><div class="text-sm font-semibold text-slate-900 truncate" id="meta-readtime">0 分钟</div></div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="p-2 rounded-lg bg-purple-50">
+                  <svg class="w-4 h-4 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <div class="flex-1 min-w-0"><div class="text-xs text-slate-500">字数</div><div class="text-sm font-semibold text-slate-900 truncate" id="meta-words">0</div></div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="p-2 rounded-lg bg-amber-50">
+                  <svg class="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                </div>
+                <div class="flex-1 min-w-0"><div class="text-xs text-slate-500">语言</div><div class="text-sm font-semibold text-slate-900 truncate" id="meta-lang">—</div></div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="p-2 rounded-lg bg-indigo-50">
+                  <svg class="w-4 h-4 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <div class="flex-1 min-w-0"><div class="text-xs text-slate-500">生成时间</div><div class="text-sm font-semibold text-slate-900 truncate" id="meta-time">—</div></div>
+              </div>
+            </div>
+
+            <!-- Article Content Area -->
+            <div id="result" class="article-content space-y-0 px-4 sm:px-6 pb-6"></div>
+
+            <!-- #7: Article Footer -->
+            <div id="article-footer" class="hidden px-6 py-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">文章由 Gemini AI 基于视频字幕生成 • 点击章节标题旁的 [5W1H] 查看详细总结</div>
+          </div>
+        </section>
+
+        <!-- #18: TOC Sidebar (Desktop) -->
+        <nav id="toc" class="hidden lg:block w-44 xl:w-52 shrink-0 lg:sticky lg:top-[4.5rem] lg:self-start bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-200">
+            <svg class="w-4 h-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <h3 class="font-medium text-slate-900 text-sm">文章目录</h3>
+            <span id="toc-chapter-count" class="ml-auto text-xs text-slate-500">0 章</span>
+          </div>
+          <ul class="p-2 max-h-[60vh] overflow-y-auto space-y-1 text-xs" id="toc-list"></ul>
+          <div id="toc-progress-section" class="hidden border-t border-slate-200">
+            <div class="flex items-center justify-between px-3 pt-3 pb-1 text-xs text-slate-500">
+              <span>阅读进度</span>
+              <span id="toc-progress-text">0%</span>
+            </div>
+            <div class="h-1.5 bg-slate-100 mx-3 mb-3 rounded-full overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300 rounded-full" id="toc-progress-bar" style="width:0%"></div>
+            </div>
+          </div>
+        </nav>
+      </div>
+    </div>
+  </main>
+
+  <button id="btn-expand-sidebar" class="lg:flex fixed left-4 top-[4.5rem] z-30 p-1.5 bg-white border border-slate-200 rounded-full shadow-lg hover:shadow-xl transition-all pointer-events-none opacity-0" title="展开侧栏">
+    <svg class="w-4 h-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>
+
+  <!-- #4: Mobile TOC Floating Button -->
+  <button id="btn-mobile-toc" class="lg:hidden fixed bottom-6 right-6 z-20 p-3 bg-white border border-slate-200 rounded-full shadow-lg hover:shadow-xl transition-shadow">
+    <svg class="w-5 h-5 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+  </button>
+
+  <!-- #4: Mobile TOC Backdrop -->
+  <div id="toc-backdrop" class="hidden lg:hidden fixed inset-0 bg-black/20 z-30"></div>
+
+  <!-- #4: Mobile TOC Drawer -->
+  <aside id="toc-drawer" class="lg:hidden fixed top-0 right-0 h-full w-72 bg-white border-l border-slate-200 shadow-xl z-40 transform transition-transform duration-300 translate-x-full flex flex-col">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <h3 class="font-medium text-slate-900 text-sm">文章目录</h3>
+        <span id="toc-drawer-count" class="text-xs text-slate-500">0 章</span>
+      </div>
+      <button id="btn-toc-close" class="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+        <svg class="w-5 h-5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <ul class="flex-1 overflow-y-auto p-4 space-y-1" id="toc-drawer-list"></ul>
+    <div id="toc-drawer-progress" class="hidden border-t border-slate-200 px-4 py-3">
+      <div class="flex items-center justify-between text-xs text-slate-500 mb-2">
+        <span>阅读进度</span>
+        <span id="toc-drawer-progress-text">0%</span>
+      </div>
+      <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div class="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300 rounded-full" id="toc-drawer-progress-bar" style="width:0%"></div>
+      </div>
+    </div>
+  </aside>
+
   <script src="/app.js" type="module"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ import {
   DEEPSEEK_5W1H_MAX_TOKENS,
 } from "./config";
 import { corsResponse, errorResponse } from "./api-client";
+import { jsonResponse } from "./response";
 
 export async function streamArticle(subtitle: string, rule: string | undefined, apiKey: string): Promise<Response> {
   const messages = buildArticleMessages(subtitle, rule);
@@ -49,10 +50,25 @@ export async function generate5W1H(chapter: string, fullText: string, apiKey: st
     }),
   });
 
-  if (!res.ok || !res.body) {
+  if (!res.ok) {
     const err = await res.text().catch(() => "");
     return errorResponse(`DeepSeek API error (HTTP ${res.status}): ${err.slice(0, 300)}`, res.status);
   }
 
-  return corsResponse(res.body, "application/json");
+  const deepseekJson = await res.json() as Record<string, unknown>;
+  const rawText = (deepseekJson as any)?.choices?.[0]?.message?.content as string | undefined;
+  if (!rawText) {
+    return jsonResponse({ error: "DeepSeek returned empty response" }, 500);
+  }
+
+  const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    return jsonResponse({ error: "No JSON found in DeepSeek response" }, 500);
+  }
+
+  try {
+    return jsonResponse(JSON.parse(jsonMatch[0]));
+  } catch {
+    return jsonResponse({ error: "Failed to parse 5W1H JSON" }, 500);
+  }
 }
