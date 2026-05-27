@@ -671,9 +671,7 @@ async function handle5W1HClick(title) {
     return;
   }
 
-  // Open and show loading
   box.classList.add('open');
-  box.dataset.loaded = 'true';
   body.innerHTML = '<div class="summary-loading text-slate-500"><svg class="w-4 h-4 animate-spin text-purple-500" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> AI 正在分析章节内容...</div>';
 
   try {
@@ -687,8 +685,10 @@ async function handle5W1HClick(title) {
     if (!resp.ok) throw new Error(_.errRequestFailed(resp.status));
     const data = await resp.json();
     render5W1H(body, data.summary || data);
+    box.dataset.loaded = 'true';
   } catch (e) {
     body.innerHTML = '<div class="w1h-error">' + _.errLoadFailed(e.message) + '</div>';
+    box.dataset.loaded = '';
   }
 }
 
