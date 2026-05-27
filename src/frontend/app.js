@@ -377,6 +377,11 @@ function onStreamComplete() {
 
   articleFooter.classList.remove('hidden');
 
+  const badge = document.getElementById('header-status-badge');
+  badge.className = badge.className.replace('bg-blue-100 text-blue-700', 'bg-green-100 text-green-700');
+  document.getElementById('header-status-dot').className = 'w-1.5 h-1.5 bg-green-500 rounded-full';
+  document.getElementById('header-status-text').textContent = '已生成';
+
   isGenerating = false;
   generateBtn.disabled = false;
   generateBtnText.textContent = _.btnGenerate;
@@ -749,6 +754,11 @@ function setUIState(generating) {
     renderedLen = 0;
     hasReceivedFirstData = false;
     tocScrollTracking = false;
+
+    const badge = document.getElementById('header-status-badge');
+    badge.className = badge.className.replace('bg-green-100 text-green-700', 'bg-blue-100 text-blue-700');
+    document.getElementById('header-status-dot').className = 'w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse';
+    document.getElementById('header-status-text').textContent = '生成中';
 
     loadingSpinner.classList.add('hidden');
     streamingEl.classList.remove('hidden');
