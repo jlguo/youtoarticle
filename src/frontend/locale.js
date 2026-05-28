@@ -1,9 +1,6 @@
 const zh = {
   btnGenerate: "开始生成文章",
   btnGenerating: "生成中...",
-  btn5W1H: "5W1H",
-  btnLoading: "加载中...",
-
   labelSummary: "5W1H 智能总结",
   labelWho: "Who（人物）",
   labelWhat: "What（事件）",
@@ -22,17 +19,14 @@ const zh = {
   errEmptyURL: "请输入 YouTube 链接",
   errInvalidURL: "请输入有效的 YouTube 链接（youtube.com/watch?v= 或 youtu.be/）",
 
-  providerGemini: "Gemini - gemini-2.5-flash（默认）",
-  providerGeminiLite: "Gemini - gemini-3.1-flash-lite",
+providerGeminiLite: "Gemini - gemini-3.1-flash-lite（默认）",
+providerGemini: "Gemini - gemini-2.5-flash",
   providerDeepseek: "DeepSeek - deepseek-v4-flash",
 };
 
 const en = {
   btnGenerate: "Generate Article",
   btnGenerating: "Generating...",
-  btn5W1H: "5W1H",
-  btnLoading: "Loading...",
-
   labelSummary: "5W1H Summary",
   labelWho: "Who",
   labelWhat: "What",
@@ -51,8 +45,8 @@ const en = {
   errEmptyURL: "Please enter a YouTube URL",
   errInvalidURL: "Invalid YouTube URL (expected youtube.com/watch?v= or youtu.be/)",
 
-  providerGemini: "Gemini - gemini-2.5-flash (default)",
-  providerGeminiLite: "Gemini - gemini-3.1-flash-lite",
+providerGeminiLite: "Gemini - gemini-3.1-flash-lite (default)",
+providerGemini: "Gemini - gemini-2.5-flash",
   providerDeepseek: "DeepSeek - deepseek-v4-flash",
 };
 

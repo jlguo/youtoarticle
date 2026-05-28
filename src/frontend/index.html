@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>YouToArticle</title>
+  <meta name="description" content="AI 将 YouTube 视频字幕转换为结构化文章，支持流式渲染、章节折叠和 5W1H 智能分析">
   <link rel="stylesheet" href="/app.css">
 </head>
 <body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900 antialiased">
@@ -132,8 +133,8 @@
               <label for="ai-provider" class="block text-sm font-medium text-slate-700 mb-1.5">AI 模型</label>
               <select id="ai-provider"
                 class="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-lg bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1rem] bg-[right_0.75rem_center] bg-no-repeat pr-10">
-                <option value="gemini-2.5-flash">Gemini - gemini-2.5-flash（默认）</option>
-                <option value="gemini-3.1-flash-lite">Gemini - gemini-3.1-flash-lite</option>
+                <option value="gemini-3.1-flash-lite">Gemini - gemini-3.1-flash-lite（默认）</option>
+                <option value="gemini-2.5-flash">Gemini - gemini-2.5-flash</option>
                 <option value="deepseek-v4-flash">DeepSeek - deepseek-v4-flash</option>
               </select>
             </div>
@@ -176,13 +177,6 @@
               <p class="text-sm text-slate-400">输入 YouTube 视频链接，点击生成按钮，即可看到 AI 生成的文章内容</p>
             </div>
 
-            <!-- #8: Loading Spinner — separate state from streaming -->
-            <div id="loading-spinner" class="hidden flex-col items-center justify-center min-h-[400px] sm:min-h-[600px] gap-3">
-              <svg class="w-8 h-8 text-blue-500 animate-spin" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              <p class="text-sm font-medium text-slate-600">正在生成文章...</p>
-              <p class="text-xs text-slate-400">请稍候，AI 正在基于视频字幕创作内容</p>
-            </div>
-
             <!-- #14: Streaming Indicator — horizontal bar layout -->
             <div id="streaming" class="hidden">
               <div class="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
@@ -193,7 +187,7 @@
                 </div>
                 <div class="flex-1">
                   <div class="text-sm font-medium text-blue-900">AI 正在生成内容</div>
-                  <div class="text-xs text-blue-600" id="streaming-subtext">使用流式输出，实时展示生成结果...</div>
+                  <div class="text-xs text-blue-600">使用流式输出，实时展示生成结果...</div>
                 </div>
                 <div class="flex items-center gap-2 px-3 py-1.5 bg-white/50 rounded-full">
                   <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>

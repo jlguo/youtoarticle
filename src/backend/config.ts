@@ -34,7 +34,7 @@ export const SUB_CACHE_TTL_SECONDS = 604800; // 7 days
 // =============================================================================
 export const ROUTE_GENERATE = "/api/generate";
 
-export const GEMINI_MODEL = "gemini-2.5-flash";
+export const GEMINI_MODEL = "gemini-3.1-flash-lite";
 export const GEMINI_MODEL_LITE = "gemini-3.1-flash-lite";
 export function geminiStreamURL(model: string) {
   return `https://generativelanguage.googleapis.com/v1/models/${model}:streamGenerateContent`;

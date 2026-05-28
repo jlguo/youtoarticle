@@ -1,124 +1,56 @@
 import { marked } from "marked";
 import { _ } from "./locale.js";
+import { show, hide, showToast } from "./helpers.js";
+import {
+  youtubeUrlInput, customRulesInput, generateBtn, generateBtnText,
+  resultEl, streamingEl, errorEl, urlErrorEl, metadataEl, enhancementsEl,
+  articleHeader, headerTimestamp, headerChapterCount, articleActions, articleFooter,
+  fallbackWarning, tocEl, tocList, tocChapterCount, tocProgressBar, tocProgressText,
+  tocProgressSection, toastContainer, emptyState, inputPanel,
+  btnCollapseSidebar, btnExpandSidebar, videoInfoCard, videoInfoTitle,
+  videoInfoChannel, videoInfoDuration, btnDemoLink, btnAdvancedToggle,
+  btnAdvancedBadge, advancedOptions, btnMobileToc, tocBackdrop, tocDrawer,
+  btnTocClose, tocDrawerList, tocDrawerProgress, tocDrawerProgressText,
+  tocDrawerProgressBar, tocDrawerCount, iconCopy, iconCopied,
+} from "./dom.js";
+import { state } from "./state.js";
 
 marked.setOptions({ breaks: true, gfm: true });
 
-// =============================================================================
-// DOM References
-// =============================================================================
-const youtubeUrlInput = document.getElementById('youtube-url');
-const customRulesInput = document.getElementById('custom-rules');
-const generateBtn = document.getElementById('generate-btn');
-const generateBtnText = document.getElementById('generate-btn-text');
-const resultEl = document.getElementById('result');
-const streamingEl = document.getElementById('streaming');
-const streamingSubtext = document.getElementById('streaming-subtext');
-const loadingSpinner = document.getElementById('loading-spinner');
-const errorEl = document.getElementById('error');
-const urlErrorEl = document.getElementById('url-error');
-const metadataEl = document.getElementById('metadata');
-const enhancementsEl = document.getElementById('enhancements');
-const articleHeader = document.getElementById('article-header');
-const headerTimestamp = document.getElementById('header-timestamp');
-const headerChapterCount = document.getElementById('header-chapter-count');
-const articleActions = document.getElementById('article-actions');
-const articleFooter = document.getElementById('article-footer');
-const fallbackWarning = document.getElementById('fallback-warning');
-const tocEl = document.getElementById('toc');
-const tocList = document.getElementById('toc-list');
-const tocChapterCount = document.getElementById('toc-chapter-count');
-const tocProgressBar = document.getElementById('toc-progress-bar');
-const tocProgressText = document.getElementById('toc-progress-text');
-const tocProgressSection = document.getElementById('toc-progress-section');
-const toastContainer = document.getElementById('toast-container');
-const emptyState = document.getElementById('empty-state');
-const inputPanel = document.getElementById('input-panel');
-const articleArea = document.getElementById('article-area');
-const btnCollapseSidebar = document.getElementById('btn-collapse-sidebar');
-const btnExpandSidebar = document.getElementById('btn-expand-sidebar');
-
 // #1: VideoInfoCard
-const videoInfoCard = document.getElementById('video-info-card');
-const videoInfoTitle = document.getElementById('video-info-title');
-const videoInfoChannel = document.getElementById('video-info-channel');
-const videoInfoDuration = document.getElementById('video-info-duration');
 
 // #2: Demo link
-const btnDemoLink = document.getElementById('btn-demo-link');
 
 // #3: Advanced options
-const btnAdvancedToggle = document.getElementById('btn-advanced-toggle');
-const btnAdvancedBadge = document.getElementById('btn-advanced-badge');
-const advancedOptions = document.getElementById('advanced-options');
 
 // #4: Mobile TOC
-const btnMobileToc = document.getElementById('btn-mobile-toc');
-const tocBackdrop = document.getElementById('toc-backdrop');
-const tocDrawer = document.getElementById('toc-drawer');
-const btnTocClose = document.getElementById('btn-toc-close');
-const tocDrawerList = document.getElementById('toc-drawer-list');
-const tocDrawerProgress = document.getElementById('toc-drawer-progress');
-const tocDrawerProgressText = document.getElementById('toc-drawer-progress-text');
-const tocDrawerProgressBar = document.getElementById('toc-drawer-progress-bar');
-const tocDrawerCount = document.getElementById('toc-drawer-count');
 
 // #6: Copy icon toggle
-const iconCopy = document.getElementById('icon-copy');
-const iconCopied = document.getElementById('icon-copied');
-
-// =============================================================================
-// State
-// =============================================================================
-let sessionId = null;
-let isGenerating = false;
-let isFromFallback = false;
-let renderScheduled = false;
-let rafId = 0;
-let abortController = null;
-let fullArticleText = "";
-let renderedLen = 0;
-let fontSize = 100;
-let hasReceivedFirstData = false;
-let copyTimeout = null;
-let tocScrollTracking = false;
 
 /** @type {Map<string, { button: HTMLButtonElement, box: HTMLDivElement, body: HTMLDivElement, sessionId: string }>} */
 const chapterSummaryMap = new Map();
 
 // =============================================================================
-// Toast
-// =============================================================================
-function showToast(message) {
-  const el = document.createElement('div');
-  el.className = 'toast toast-in';
-  el.textContent = message;
-  toastContainer.appendChild(el);
-  setTimeout(() => { el.classList.add('toast-out'); }, 2500);
-  setTimeout(() => { el.remove(); }, 3000);
-}
 
-// =============================================================================
-// Streaming: SSE → DOM
-// =============================================================================
 function feedContent(text) {
-  if (!hasReceivedFirstData) {
-    hasReceivedFirstData = true;
+  if (!state.hasReceivedFirstData) {
+    state.hasReceivedFirstData = true;
     emptyState.style.display = 'none';
     streamingEl.classList.add('hidden');
     articleHeader.classList.remove('hidden');
     metadataEl.classList.remove('hidden');
     enhancementsEl.classList.remove('hidden');
     articleActions.classList.remove('hidden');
-    if (isFromFallback) fallbackWarning.classList.remove('hidden');
+    if (state.isFromFallback) fallbackWarning.classList.remove('hidden');
     headerTimestamp.textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   }
 
-  fullArticleText += text;
-  if (!renderScheduled) {
-    renderScheduled = true;
-    rafId = requestAnimationFrame(() => {
-      if (fullArticleText.length > renderedLen) {
-        resultEl.innerHTML = marked.parse(fullArticleText);
+  state.fullArticleText += text;
+  if (!state.renderScheduled) {
+    state.renderScheduled = true;
+    state.rafId = requestAnimationFrame(() => {
+      if (state.fullArticleText.length > state.renderedLen) {
+        resultEl.innerHTML = marked.parse(state.fullArticleText);
         const cursor = document.createElement('span');
         cursor.id = 'stream-cursor';
         cursor.className = 'cursor-blink';
@@ -128,14 +60,14 @@ function feedContent(text) {
         } else {
           resultEl.appendChild(cursor);
         }
-        renderedLen = fullArticleText.length;
+        state.renderedLen = state.fullArticleText.length;
         classifyBlocks();
         wrapNewChapters();
         updateMetadata();
         updateTOCItems();
       }
-      renderScheduled = false;
-      rafId = 0;
+      state.renderScheduled = false;
+      state.rafId = 0;
     });
   }
 }
@@ -155,8 +87,8 @@ async function streamArticle(youtubeUrl, rule, model, signal) {
     throw new Error(errMsg);
   }
 
-  sessionId = response.headers.get("X-Session-Id");
-  isFromFallback = response.headers.get("X-From-Fallback") === "true";
+  state.sessionId = response.headers.get("X-Session-Id");
+  state.isFromFallback = response.headers.get("X-From-Fallback") === "true";
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -188,16 +120,13 @@ async function streamArticle(youtubeUrl, rule, model, signal) {
     }
   }
 
-  if (isGenerating) {
+  if (state.isGenerating) {
     onStreamComplete();
   }
 }
 
-// =============================================================================
-// Metadata
-// =============================================================================
 function updateMetadata() {
-  const text = fullArticleText;
+  const text = state.fullArticleText;
   const chapters = (text.match(/^## /gm) || []).length;
   const chars = text.replace(/\s/g, '').length;
   const words = Math.round(chars * 0.6);
@@ -212,32 +141,29 @@ function updateMetadata() {
   headerChapterCount.textContent = chapters + ' 章';
 }
 
-// =============================================================================
-// Reading Enhancements
-// =============================================================================
 function applyFontSize() {
-  resultEl.style.setProperty('--article-font-size', (fontSize / 100) + 'em');
-  document.getElementById('fontsize-label').textContent = fontSize + '%';
+  resultEl.style.setProperty('--article-font-size', (state.fontSize / 100) + 'em');
+  document.getElementById('fontsize-label').textContent = state.fontSize + '%';
 }
 
 document.getElementById('btn-font-down').addEventListener('click', () => {
-  if (fontSize > 80) { fontSize -= 10; applyFontSize(); }
+  if (state.fontSize > 80) { state.fontSize -= 10; applyFontSize(); }
 });
 document.getElementById('btn-font-up').addEventListener('click', () => {
-  if (fontSize < 140) { fontSize += 10; applyFontSize(); }
+  if (state.fontSize < 140) { state.fontSize += 10; applyFontSize(); }
 });
 document.getElementById('btn-font-reset').addEventListener('click', () => {
-  fontSize = 100; applyFontSize();
+  state.fontSize = 100; applyFontSize();
 });
 
 // #6: Copy with icon toggle
 document.getElementById('btn-copy').addEventListener('click', () => {
-  if (copyTimeout) clearTimeout(copyTimeout);
-  const text = fullArticleText.replace(/#{1,6}\s/g, '');
+  if (state.copyTimeout) clearTimeout(state.copyTimeout);
+  const text = state.fullArticleText.replace(/#{1,6}\s/g, '');
   navigator.clipboard.writeText(text).then(() => {
     iconCopy.classList.add('hidden');
     iconCopied.classList.remove('hidden');
-    copyTimeout = setTimeout(() => {
+    state.copyTimeout = setTimeout(() => {
       iconCopied.classList.add('hidden');
       iconCopy.classList.remove('hidden');
     }, 2000);
@@ -252,7 +178,7 @@ document.getElementById('btn-share').addEventListener('click', () => {
 
 // #6: Export
 document.getElementById('btn-export').addEventListener('click', () => {
-  const text = fullArticleText;
+  const text = state.fullArticleText;
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -263,9 +189,6 @@ document.getElementById('btn-export').addEventListener('click', () => {
   showToast('文章已导出');
 });
 
-// =============================================================================
-// #1: VideoInfoCard — URL validation and card display
-// =============================================================================
 function validateYouTubeUrl(url) {
   const patterns = [
     /^(https?:\/\/)?(www\.)?youtube\.com\/watch\?v=[\w-]{11}/,
@@ -327,24 +250,19 @@ youtubeUrlInput.addEventListener('input', () => {
 
 // #2: Demo link
 btnDemoLink.addEventListener('click', () => {
-  const demoUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  const demoUrl = 'https://www.youtube.com/watch?v=xRh2sVcNXQ8';
   youtubeUrlInput.value = demoUrl;
   handleVideoUrlInput(demoUrl);
 });
 
 // Enable/disable demo link based on generating state
 function updateDemoLinkState() {
-  btnDemoLink.disabled = isGenerating;
+  btnDemoLink.disabled = state.isGenerating;
 }
 
-// =============================================================================
-// #3: Advanced Options Toggle
-// =============================================================================
-let isAdvancedOpen = false;
-
 btnAdvancedToggle.addEventListener('click', () => {
-  isAdvancedOpen = !isAdvancedOpen;
-  if (isAdvancedOpen) {
+  state.isAdvancedOpen = !state.isAdvancedOpen;
+  if (state.isAdvancedOpen) {
     advancedOptions.classList.remove('hidden');
     advancedOptions.classList.add('animate-in');
     btnAdvancedBadge.textContent = '收起';
@@ -355,13 +273,10 @@ btnAdvancedToggle.addEventListener('click', () => {
   }
 });
 
-// =============================================================================
-// Article Completion
-// =============================================================================
 function onStreamComplete() {
-  if (rafId) { cancelAnimationFrame(rafId); rafId = 0; renderScheduled = false; }
-  resultEl.innerHTML = marked.parse(fullArticleText);
-  renderedLen = fullArticleText.length;
+  if (state.rafId) { cancelAnimationFrame(state.rafId); state.rafId = 0; state.renderScheduled = false; }
+  resultEl.innerHTML = marked.parse(state.fullArticleText);
+  state.renderedLen = state.fullArticleText.length;
   updateMetadata();
 
   classifyBlocks();
@@ -382,7 +297,7 @@ function onStreamComplete() {
   document.getElementById('header-status-dot').className = 'w-1.5 h-1.5 bg-green-500 rounded-full';
   document.getElementById('header-status-text').textContent = '已生成';
 
-  isGenerating = false;
+  state.isGenerating = false;
   generateBtn.disabled = false;
   generateBtnText.textContent = _.btnGenerate;
   youtubeUrlInput.disabled = false;
@@ -515,15 +430,12 @@ function addChapter5W1H(section, title) {
     body.appendChild(summaryBox);
   }
 
-  chapterSummaryMap.set(title, { button: btn, box: summaryBox, body: summaryBody, sessionId });
+  chapterSummaryMap.set(title, { button: btn, box: summaryBox, body: summaryBody, sessionId: state.sessionId });
 
   btn.addEventListener('click', () => handle5W1HClick(title));
   summaryHeader.addEventListener('click', () => toggleSummaryBox(title));
 }
 
-// =============================================================================
-// #4 + #18: Table of Contents — desktop + mobile
-// =============================================================================
 function updateTOCItems() {
   const h2s = resultEl.querySelectorAll('h2');
   const total = h2s.length;
@@ -568,13 +480,13 @@ function updateTOCItems() {
     tocDrawerList.appendChild(mobileBtn);
   });
 
-  if (tocScrollTracking) updateActiveTOC();
+  if (state.tocScrollTracking) updateActiveTOC();
 }
 
 function initTOC() {
   updateTOCItems();
-  if (!tocScrollTracking) {
-    tocScrollTracking = true;
+  if (!state.tocScrollTracking) {
+    state.tocScrollTracking = true;
     window.addEventListener('scroll', updateActiveTOC, { passive: true });
   }
 }
@@ -637,9 +549,6 @@ btnMobileToc.addEventListener('click', openMobileToc);
 btnTocClose.addEventListener('click', closeMobileToc);
 tocBackdrop.addEventListener('click', closeMobileToc);
 
-// =============================================================================
-// 5W1H Summary API
-// =============================================================================
 const W1H_LABELS = [
   { key: 'who', label: _.labelWho, icon: '👤', className: 'w1h-blue' },
   { key: 'what', label: _.labelWhat, icon: '📋', className: 'w1h-green' },
@@ -714,9 +623,6 @@ function render5W1H(body, summary) {
   body.appendChild(container);
 }
 
-// =============================================================================
-// Generate Button
-// =============================================================================
 function validateURL(url) {
   if (!url || !url.trim()) return _.errEmptyURL;
   const patterns = [
@@ -729,7 +635,7 @@ function validateURL(url) {
 }
 
 function setUIState(generating) {
-  isGenerating = generating;
+  state.isGenerating = generating;
   generateBtn.disabled = generating;
   generateBtnText.textContent = generating ? _.btnGenerating : _.btnGenerate;
   youtubeUrlInput.disabled = generating;
@@ -750,17 +656,16 @@ function setUIState(generating) {
     streamingEl.classList.add('hidden');
     errorEl.classList.add('hidden');
     resultEl.innerHTML = '';
-    fullArticleText = '';
-    renderedLen = 0;
-    hasReceivedFirstData = false;
-    tocScrollTracking = false;
+    state.fullArticleText = '';
+    state.renderedLen = 0;
+    state.hasReceivedFirstData = false;
+    state.tocScrollTracking = false;
 
     const badge = document.getElementById('header-status-badge');
     badge.className = badge.className.replace('bg-green-100 text-green-700', 'bg-blue-100 text-blue-700');
     document.getElementById('header-status-dot').className = 'w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse';
     document.getElementById('header-status-text').textContent = '生成中';
 
-    loadingSpinner.classList.add('hidden');
     streamingEl.classList.remove('hidden');
   }
 }
@@ -775,14 +680,14 @@ generateBtn.addEventListener('click', async () => {
   setUIState(true);
 
   // Cancel previous request
-  if (abortController) abortController.abort();
-  abortController = new AbortController();
+  if (state.abortController) state.abortController.abort();
+  state.abortController = new AbortController();
 
   const rule = customRulesInput.value;
   const model = document.getElementById('ai-provider').value;
 
   try {
-    await streamArticle(url.trim(), rule, model, abortController.signal);
+    await streamArticle(url.trim(), rule, model, state.abortController.signal);
   } catch (err) {
     if (err.name === 'AbortError') return;
     streamingEl.classList.add('hidden');
@@ -792,8 +697,8 @@ generateBtn.addEventListener('click', async () => {
     metadataEl.classList.add('hidden');
     enhancementsEl.classList.add('hidden');
     articleActions.classList.add('hidden');
-    fullArticleText = ''; renderedLen = 0;
-    isGenerating = false;
+    state.fullArticleText = ''; state.renderedLen = 0;
+    state.isGenerating = false;
     generateBtn.disabled = false;
     generateBtnText.textContent = _.btnGenerate;
     youtubeUrlInput.disabled = false;
@@ -801,10 +706,9 @@ generateBtn.addEventListener('click', async () => {
     updateDemoLinkState();
     emptyState.style.display = '';
   } finally {
-    abortController = null;
+    state.abortController = null;
   }
 });
-
 
 function collapseSidebar() {
   inputPanel.classList.add('sidebar-sliding');
