@@ -1,16 +1,21 @@
 // YouTube subtitle extraction module
-// Fallback chain: KV cache → timedtext API → youtubei.js → hard-coded fallback
+// Fallback chain: Innertube API (lightweight, <50ms CPU) → timedtext API → hard-coded fallback
 
-import { Innertube } from 'youtubei.js';
 import { DEMO_SUBTITLE } from '../fallback-subtitles/demo';
 import {
   YOUTUBE_FETCH_TIMEOUT_MS,
   YOUTUBE_TIMEDTEXT_URL,
+  INNERTUBE_PLAYER_URL,
+  INNERTUBE_API_KEY,
   SUB_CACHE_PREFIX,
   SUB_CACHE_TTL_SECONDS,
 } from "./config";
 
-const INNERTUBE_TIMEOUT_MS = 30_000;
+// Mobile client profiles for Innertube API
+const INNERTUBE_CLIENTS = {
+  IOS: { clientName: "IOS", clientVersion: "20.10.4", platform: "MOBILE" },
+  ANDROID: { clientName: "ANDROID", clientVersion: "20.10.38", platform: "MOBILE" },
+} as const;
 
 function stripTimestamps(text: string): string {
   const lines = text.split('\n');
@@ -42,7 +47,6 @@ function parseXMLSubtitle(xmlText: string): string {
     if (contentEnd === -1) break;
 
     let content = xmlText.slice(contentStart, contentEnd);
-    // Decode common HTML entities inline
     content = content
       .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
@@ -57,14 +61,10 @@ function parseXMLSubtitle(xmlText: string): string {
     pos = contentEnd + TAG_CLOSE.length;
   }
 
-  if (!result) return ""; // No XML tags found → empty
+  if (!result) return "";
   return result;
 }
 
-/**
- * Extract a YouTube video ID from various URL formats.
- * Supports: youtube.com/watch?v=, youtu.be/, youtube.com/embed/
- */
 export function extractVideoId(url: string): string | null {
   const patterns = [
     /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
@@ -78,174 +78,169 @@ export function extractVideoId(url: string): string | null {
   return null;
 }
 
-// ========== Helper: timed fetch and timeout racing ==========
+// ========== API Key (dynamic, fetched from watch page) ==========
+
+let _cachedApiKey: string | null = null;
 
 /**
- * Create a fetch-like function that adds an AbortSignal timeout to every request.
- * This prevents youtubei.js internal calls from hanging indefinitely in restricted environments.
+ * Fetch the Innertube API key from a YouTube watch page, caching per Worker isolate.
+ * The key is embedded in the page HTML and rotates periodically — hardcoding it
+ * (as most libraries do) eventually breaks. Falls back to hardcoded key.
  */
-function createTimedFetch(timeoutMs: number): typeof fetch {
-  const { WEBSHARE_PROXY_HOST, WEBSHARE_PROXY_PORT, WEBSHARE_PROXY_USERNAME, WEBSHARE_PROXY_PASSWORD } =
-    (process.env as Record<string, string | undefined>);
-  const useProxy = WEBSHARE_PROXY_HOST && WEBSHARE_PROXY_PORT;
+async function getApiKey(videoId: string, env: Env): Promise<string> {
+  if (_cachedApiKey) return _cachedApiKey;
 
-  return (input: RequestInfo | URL, init?: RequestInit) => {
-    const signal = AbortSignal.timeout(timeoutMs);
-    if (useProxy) {
-      return fetch(input, {
-        ...init,
-        signal,
-        cf: {
-          resolveOverride: `${WEBSHARE_PROXY_HOST}:${WEBSHARE_PROXY_PORT}`,
-        },
-        headers: {
-          ...(init?.headers || {}),
-          ...(WEBSHARE_PROXY_USERNAME
-            ? { 'Proxy-Authorization': 'Basic ' + btoa(`${WEBSHARE_PROXY_USERNAME}:${WEBSHARE_PROXY_PASSWORD || ''}`) }
-            : {}),
-        },
-      } as RequestInit);
+  try {
+    const response = await fetchViaProxy(`https://www.youtube.com/watch?v=${videoId}`, {
+      signal: AbortSignal.timeout(10_000),
+    }, env);
+
+    if (response.ok) {
+      const html = await response.text();
+      const match = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/)
+                 || html.match(/INNERTUBE_API_KEY\\":\\"([^\\"]+)\\"/);
+      if (match) {
+        _cachedApiKey = match[1];
+        console.log("[youtube] Fetched dynamic Innertube API key");
+        return _cachedApiKey;
+      }
     }
-    return fetch(input, { ...init, signal });
+  } catch (e) {
+    console.log("[youtube] API key fetch failed, using hardcoded fallback:", e instanceof Error ? e.message : e);
+  }
+
+  // Fallback to hardcoded key
+  _cachedApiKey = INNERTUBE_API_KEY;
+  return _cachedApiKey;
+}
+
+// ========== Proxy fetch helper ==========
+
+/**
+ * Fetch through webshare proxy when WEBSHARE_* env bindings are configured,
+ * otherwise pass through directly. Env bindings read at request time (not module
+ * load) because Cloudflare secrets are only available via the env parameter.
+ */
+function fetchViaProxy(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  env: Env,
+): Promise<Response> {
+  const host = env.WEBSHARE_PROXY_HOST;
+  const port = env.WEBSHARE_PROXY_PORT;
+  const useProxy = host && port;
+
+  if (useProxy) {
+    const headers: Record<string, string> = { ...(init?.headers as Record<string, string> || {}) };
+    if (env.WEBSHARE_PROXY_USERNAME) {
+      headers['Proxy-Authorization'] =
+        'Basic ' + btoa(`${env.WEBSHARE_PROXY_USERNAME}:${env.WEBSHARE_PROXY_PASSWORD || ''}`);
+    }
+    return fetch(input, {
+      ...init,
+      headers,
+      cf: { resolveOverride: `${host}:${port}` },
+    } as RequestInit);
+  }
+  return fetch(input, init);
+}
+
+// ========== Step 1: Lightweight Innertube API (no youtubei.js) ==========
+
+interface InnertubeCaptionTrack {
+  baseUrl: string;
+  languageCode: string;
+}
+
+interface InnertubePlayerResponse {
+  captions?: {
+    playerCaptionsTracklistRenderer?: {
+      captionTracks?: InnertubeCaptionTrack[];
+    };
+  };
+  videoDetails?: {
+    title?: string;
+    author?: string;
+    lengthSeconds?: string;
+    shortDescription?: string;
+    viewCount?: string;
   };
 }
 
-/**
- * Race a promise against a timeout.
- * Returns the promise result if it settles within the timeout, otherwise rejects.
- */
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error(`Timeout: ${label} exceeded ${ms}ms`));
-    }, ms);
+async function callInnertubePlayer(
+  videoId: string,
+  env: Env,
+  client: { clientName: string; clientVersion: string; platform?: string } = INNERTUBE_CLIENTS.IOS,
+): Promise<InnertubePlayerResponse> {
+  const apiKey = await getApiKey(videoId, env);
+  const url = `${INNERTUBE_PLAYER_URL}?key=${apiKey}`;
+  const body = JSON.stringify({
+    context: { client },
+    videoId,
   });
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    if (timer !== undefined) clearTimeout(timer);
-  });
-}
 
-// ========== Step 1: youtubei.js Innertube ==========
-
-// Global cached Innertube session — created once per Worker isolate.
-// Innertube.create() is CPU-heavy (session generation, player config fetch).
-// Reusing the session across requests avoids re-initialization on every call.
-let _innertubePromise: Promise<Innertube> | null = null;
-
-function getInnertube(): Promise<Innertube> {
-  if (!_innertubePromise) {
-    const timedFetch = createTimedFetch(YOUTUBE_FETCH_TIMEOUT_MS);
-    _innertubePromise = Innertube.create({
-      fetch: timedFetch,
-      generate_session_locally: true,
-      retrieve_innertube_config: false,
-    });
-  }
-  return _innertubePromise;
-}
-
-/**
- * Fetch subtitles via youtubei.js Innertube API.
- *
- * First tries the Transcript API for structured segment data,
- * then falls back to raw caption track XML parsing.
- * Uses first available transcript language.
- *
- * Uses custom fetch with AbortSignal.timeout() to prevent hanging
- * in restricted network environments (e.g., local workerd dev).
- */
-export async function fetchSubtitlesViaInnertube(videoId: string): Promise<string> {
-  const innertube = await withTimeout(
-    getInnertube(),
-    INNERTUBE_TIMEOUT_MS,
-    'Innertube.create()',
-  );
-
-  // getInfo uses the cached session's custom fetch
-  const info = await withTimeout(
-    innertube.getInfo(videoId),
-    INNERTUBE_TIMEOUT_MS,
-    'innertube.getInfo()',
-  );
-
-  // ----- Approach 1: Transcript API (structured segments) -----
-  try {
-    const transcriptInfo = await info.getTranscript();
-    const availableLangs = transcriptInfo.languages as string[];
-
-    const selectedLang = availableLangs.length > 0 ? availableLangs[0] : '';
-    if (!selectedLang) {
-      throw new Error('No transcript languages available');
-    }
-
-    // Select the language if not already selected
-    let transcript = transcriptInfo;
-    if (selectedLang !== transcriptInfo.selectedLanguage) {
-      transcript = await transcriptInfo.selectLanguage(selectedLang);
-    }
-
-    // Extract text from segments
-    const searchPanel = transcript.transcript.content;
-    const segmentList = searchPanel?.body;
-    const segments = segmentList?.initial_segments;
-
-    if (!segments || segments.length === 0) {
-      throw new Error('No transcript segments found');
-    }
-
-    const texts: string[] = [];
-    for (const segment of segments) {
-      // Both TranscriptSegment and TranscriptSectionHeader have snippet
-      if (segment && 'snippet' in segment) {
-        const snippet = (segment as { snippet: { toString(): string } }).snippet;
-        texts.push(snippet.toString());
-      }
-    }
-
-    const result = texts.join(' ').replace(/\s+/g, ' ').trim();
-    if (result) {
-      return stripTimestamps(result);
-    }
-    throw new Error('Transcript segments produced empty text');
-  } catch (transcriptErr) {
-    console.log('[youtube] Transcript API failed, trying caption tracks:', transcriptErr instanceof Error ? transcriptErr.message : transcriptErr);
-  }
-
-  // ----- Approach 2: Caption tracks (XML subtitles) -----
-  if (!info.captions?.caption_tracks || info.captions.caption_tracks.length === 0) {
-    throw new Error('No subtitles available for this video');
-  }
-
-  const tracks = info.captions.caption_tracks;
-
-  const selectedTrack = tracks.length > 0 ? tracks[0] : null;
-  if (!selectedTrack) {
-    throw new Error('No caption track available');
-  }
-
-  // Fetch and parse the subtitle XML (with timeout)
-  const response = await fetch(selectedTrack.base_url, {
+  const response = await fetchViaProxy(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Origin": "https://www.youtube.com",
+    },
+    body,
     signal: AbortSignal.timeout(YOUTUBE_FETCH_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch caption track: HTTP ${response.status}`);
-  }
-  const xmlText = await response.text();
-  const parsed = parseXMLSubtitle(xmlText);
+  }, env);
 
-  if (!parsed) {
-    throw new Error('Caption track produced empty text');
+  if (!response.ok) {
+    throw new Error(`Innertube API returned HTTP ${response.status}`);
   }
-  return parsed;
+
+  return response.json() as Promise<InnertubePlayerResponse>;
+}
+
+async function fetchSubtitlesViaInnertube(videoId: string, env: Env): Promise<string> {
+  // Try IOS first, then ANDROID as fallback (different profiles return different
+  // caption availability depending on the requesting IP region)
+  for (const [name, client] of Object.entries(INNERTUBE_CLIENTS)) {
+    try {
+      const playerData = await callInnertubePlayer(videoId, env, client);
+
+      const tracks = playerData.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (!tracks || tracks.length === 0) {
+        console.log(`[youtube] ${name} profile: 0 caption tracks`);
+        continue;
+      }
+
+      const track = tracks.find(t => t.languageCode === "en") || tracks[0];
+
+      // Strip format override param (youtube-transcript-edge pattern) to get standard XML
+      const captionUrl = track.baseUrl.replace(/&fmt=[^&]+/, '');
+
+      const response = await fetchViaProxy(captionUrl, {
+        signal: AbortSignal.timeout(YOUTUBE_FETCH_TIMEOUT_MS),
+      }, env);
+
+      if (!response.ok) {
+        console.log(`[youtube] ${name} profile: caption fetch HTTP ${response.status}`);
+        continue;
+      }
+
+      const xmlText = await response.text();
+      const parsed = parseXMLSubtitle(xmlText);
+      if (!parsed) {
+        console.log(`[youtube] ${name} profile: caption XML parsed empty`);
+        continue;
+      }
+
+      console.log(`[youtube] ${name} profile: ${parsed.length} chars extracted`);
+      return parsed;
+    } catch (e) {
+      console.log(`[youtube] ${name} profile failed:`, e instanceof Error ? e.message : e);
+    }
+  }
+  throw new Error("No caption tracks available (tried IOS + ANDROID profiles)");
 }
 
 // ========== Step 2: timedtext API ==========
 
-/**
- * Fetch subtitles via YouTube's timedtext API (lightweight HTTP GET).
- * Much less CPU-intensive than youtubei.js — a single fetch + XML parse.
- */
 async function fetchSubtitlesViaTimedtext(videoId: string): Promise<string> {
   for (const lang of ["en", "zh"]) {
     const url = `${YOUTUBE_TIMEDTEXT_URL}?v=${videoId}&lang=${lang}`;
@@ -257,26 +252,18 @@ async function fetchSubtitlesViaTimedtext(videoId: string): Promise<string> {
     const parsed = parseXMLSubtitle(xmlText);
     if (parsed) return parsed;
   }
-  throw new Error('Timedtext API returned no usable subtitles');
+  throw new Error("Timedtext API returned no usable subtitles");
 }
 
 // ========== Step 3: Hard-coded fallback ==========
 
-/**
- * Load hard-coded fallback subtitles for the demo video.
- */
 export function fetchFallbackSubtitles(): string {
   return DEMO_SUBTITLE;
 }
 
 // ========== Orchestrator ==========
 
-/**
- * Orchestrator: KV cache → timedtext API → youtubei.js → hard-coded fallback.
- * Caches successful fetches in KV to avoid repeated YouTube API calls.
- */
 export async function fetchSubtitlesWithFallback(videoId: string, env: Env): Promise<{ text: string; fromFallback: boolean }> {
-  // Step 0: Check KV cache (avoids all YouTube API calls on repeat visits)
   try {
     const cached = await env.SESSION_KV.get(`${SUB_CACHE_PREFIX}${videoId}`);
     if (cached) {
@@ -290,25 +277,22 @@ export async function fetchSubtitlesWithFallback(videoId: string, env: Env): Pro
   let result: string | null = null;
   let fromFallback = false;
 
-  // Step 1: Timedtext API (lightweight, works for most videos)
   try {
-    console.log(`[subtitle] Attempting timedtext fetch for video ${videoId}...`);
-    result = await fetchSubtitlesViaTimedtext(videoId);
-  } catch (timedtextErr) {
-    console.log(`[subtitle] Timedtext fetch failed:`, timedtextErr instanceof Error ? timedtextErr.message : timedtextErr);
+    console.log(`[subtitle] Attempting Innertube fetch for video ${videoId}...`);
+    result = await fetchSubtitlesViaInnertube(videoId, env);
+  } catch (innertubeErr) {
+    console.log(`[subtitle] Innertube fetch failed:`, innertubeErr instanceof Error ? innertubeErr.message : innertubeErr);
   }
 
-  // Step 2: youtubei.js Innertube API (heavy, for videos without timedtext)
   if (!result) {
     try {
-      console.log(`[subtitle] Attempting Innertube fetch for video ${videoId}...`);
-      result = await fetchSubtitlesViaInnertube(videoId);
-    } catch (innertubeErr) {
-      console.log(`[subtitle] Innertube fetch failed:`, innertubeErr instanceof Error ? innertubeErr.message : innertubeErr);
+      console.log(`[subtitle] Attempting timedtext fetch for video ${videoId}...`);
+      result = await fetchSubtitlesViaTimedtext(videoId);
+    } catch (timedtextErr) {
+      console.log(`[subtitle] Timedtext fetch failed:`, timedtextErr instanceof Error ? timedtextErr.message : timedtextErr);
     }
   }
 
-  // Step 3: Hard-coded fallback
   if (!result) {
     try {
       console.log(`[subtitle] Loading fallback subtitles for video ${videoId}...`);
@@ -321,7 +305,6 @@ export async function fetchSubtitlesWithFallback(videoId: string, env: Env): Pro
     }
   }
 
-  // Cache real results (skip fallback to avoid poisoning cache with demo text)
   if (!fromFallback) {
     try {
       await env.SESSION_KV.put(`${SUB_CACHE_PREFIX}${videoId}`, result!, {
@@ -336,21 +319,32 @@ export async function fetchSubtitlesWithFallback(videoId: string, env: Env): Pro
   return { text: result, fromFallback };
 }
 
-/**
- * Fetch video metadata (title, channel, duration) via Innertube.
- */
-export async function fetchVideoInfo(videoId: string): Promise<{ title: string; channel: string; duration: string } | null> {
+export interface VideoMetadata {
+  title: string;
+  channel: string;
+  duration: string;
+  description: string;
+  viewCount: number;
+  videoId: string;
+}
+
+export async function fetchVideoInfo(videoId: string, env: Env): Promise<VideoMetadata | null> {
   try {
-    const innertube = await getInnertube();
-    const info = await innertube.getInfo(videoId);
-    const basic = info.basic_info;
-    const seconds = basic.duration ?? 0;
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
+    const playerData = await callInnertubePlayer(videoId, env);
+    const details = playerData.videoDetails;
+    if (!details) return null;
+
+    const secs = parseInt(details.lengthSeconds || "0", 10);
+    const mins = Math.floor(secs / 60);
+    const seconds = secs % 60;
+
     return {
-      title: (basic.title as string) || videoId,
-      channel: (basic.author as string) || 'YouTube',
-      duration: `${mins}:${secs.toString().padStart(2, '0')}`,
+      title: details.title || videoId,
+      channel: details.author || "YouTube",
+      duration: `${mins}:${seconds.toString().padStart(2, "0")}`,
+      description: details.shortDescription || "",
+      viewCount: parseInt(details.viewCount || "0", 10),
+      videoId,
     };
   } catch {
     return null;

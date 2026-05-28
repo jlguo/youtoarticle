@@ -1,4 +1,4 @@
-import { extractVideoId, fetchSubtitlesWithFallback } from "./youtube";
+import { extractVideoId, fetchSubtitlesWithFallback, fetchVideoInfo } from "./youtube";
 import { streamArticle as geminiStreamArticle, generate5W1H as gemini5W1H } from "./gemini";
 import { streamArticle as deepseekStreamArticle, generate5W1H as deepseek5W1H } from "./deepseek";
 import {
@@ -9,7 +9,6 @@ import {
   GEMINI_MODEL,
   GEMINI_MODEL_LITE,
   ARTICLE_KV_PREFIX,
-  SUBTITLE_MAX_CHARS,
 } from "./config";
 import { jsonResponse, corsHeaders } from "./response";
 import { parseJSONBody, getStringField } from "./validation";
@@ -62,30 +61,41 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       }
 
       const { text: subtitle, fromFallback } = await fetchSubtitlesWithFallback(videoId, env);
-      const rule = getStringField(body, "rule");
 
-      // Truncate long subtitles to avoid CPU/memory limits and excessive AI reasoning output
-      const truncatedSubtitle = subtitle.length > SUBTITLE_MAX_CHARS
-        ? subtitle.slice(0, SUBTITLE_MAX_CHARS)
-        : subtitle;
-      if (subtitle.length > SUBTITLE_MAX_CHARS) {
-        console.log(`[router] Truncated subtitle from ${subtitle.length} to ${SUBTITLE_MAX_CHARS} chars`);
+      // Prepend video metadata (title, channel, description) to subtitle text
+      // so the AI has context about speakers, topic, etc.
+      let enrichedSubtitle = subtitle;
+      try {
+        const info = await fetchVideoInfo(videoId, env);
+        if (info) {
+          const meta = [
+            `视频标题: ${info.title}`,
+            `频道: ${info.channel}`,
+            `时长: ${info.duration}`,
+            `描述: ${info.description}`,
+          ].filter(l => l.includes(': ')).join('\n');
+          enrichedSubtitle = `${meta}\n\n---\n\n${subtitle}`;
+        }
+      } catch {
+        // metadata fetch failed, proceed with original subtitle
       }
+
+      const rule = getStringField(body, "rule");
 
       const provider = getProvider(request, env);
       const apiKey = getAPIKey(provider, env);
 
       let aiResponse: Response;
       if (provider === PROVIDER_DEEPSEEK) {
-        aiResponse = await deepseekStreamArticle(truncatedSubtitle, rule, apiKey);
+        aiResponse = await deepseekStreamArticle(enrichedSubtitle, rule, apiKey);
       } else {
-        aiResponse = await geminiStreamArticle(truncatedSubtitle, rule, apiKey, getModel(request));
+        aiResponse = await geminiStreamArticle(enrichedSubtitle, rule, apiKey, getModel(request));
       }
 
       if (!aiResponse.ok || !aiResponse.body) return aiResponse;
 
       const sessionId = crypto.randomUUID();
-      const teeBody = teeAndSaveArticle(aiResponse.body, sessionId, env, truncatedSubtitle, rule);
+      const teeBody = teeAndSaveArticle(aiResponse.body, sessionId, env, enrichedSubtitle, rule);
 
       return new Response(teeBody, {
         status: aiResponse.status,

@@ -46,7 +46,7 @@ test("full app lifecycle — landing → UI → generate → content → complet
   await expect(page.locator("#video-info-card")).toBeVisible({ timeout: 10000 });
   await expect(page.locator("#video-info-title")).toBeVisible();
   await expect(page.locator("#video-info-channel")).toBeVisible();
-  await expect(page.locator("#video-info-duration")).toBeVisible();
+  await expect(page.locator("#video-info-duration")).toBeHidden();
 
   // ── 04 Generate button style + URL validation ───────────
   await expect(page.locator("#generate-btn-text")).toHaveText("开始生成文章");
@@ -76,8 +76,6 @@ test("full app lifecycle — landing → UI → generate → content → complet
   await expect(sel).toHaveValue("gemini-2.5-flash");
   await sel.selectOption("deepseek-v4-flash");
   await expect(sel).toHaveValue("deepseek-v4-flash");
-  await sel.selectOption("gemini-3.1-flash-lite");
-  await expect(sel).toHaveValue("gemini-3.1-flash-lite");
 
   if (process.env.MODEL) {
     await sel.selectOption(process.env.MODEL);
