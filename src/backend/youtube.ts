@@ -83,8 +83,27 @@ export function extractVideoId(url: string): string | null {
  * This prevents youtubei.js internal calls from hanging indefinitely in restricted environments.
  */
 function createTimedFetch(timeoutMs: number): typeof fetch {
+  const { WEBSHARE_PROXY_HOST, WEBSHARE_PROXY_PORT, WEBSHARE_PROXY_USERNAME, WEBSHARE_PROXY_PASSWORD } =
+    (process.env as Record<string, string | undefined>);
+  const useProxy = WEBSHARE_PROXY_HOST && WEBSHARE_PROXY_PORT;
+
   return (input: RequestInfo | URL, init?: RequestInit) => {
     const signal = AbortSignal.timeout(timeoutMs);
+    if (useProxy) {
+      return fetch(input, {
+        ...init,
+        signal,
+        cf: {
+          resolveOverride: `${WEBSHARE_PROXY_HOST}:${WEBSHARE_PROXY_PORT}`,
+        },
+        headers: {
+          ...(init?.headers || {}),
+          ...(WEBSHARE_PROXY_USERNAME
+            ? { 'Proxy-Authorization': 'Basic ' + btoa(`${WEBSHARE_PROXY_USERNAME}:${WEBSHARE_PROXY_PASSWORD || ''}`) }
+            : {}),
+        },
+      } as RequestInit);
+    }
     return fetch(input, { ...init, signal });
   };
 }
