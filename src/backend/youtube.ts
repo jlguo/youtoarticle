@@ -1,5 +1,5 @@
 // YouTube subtitle extraction module
-// Fallback chain: KV cache → youtubei.js → timedtext API → hard-coded fallback
+// Fallback chain: KV cache → timedtext API → youtubei.js → hard-coded fallback
 
 import { Innertube } from 'youtubei.js';
 import { DEMO_SUBTITLE } from '../fallback-subtitles/demo';
@@ -126,6 +126,23 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
 // ========== Step 1: youtubei.js Innertube ==========
 
+// Global cached Innertube session — created once per Worker isolate.
+// Innertube.create() is CPU-heavy (session generation, player config fetch).
+// Reusing the session across requests avoids re-initialization on every call.
+let _innertubePromise: Promise<Innertube> | null = null;
+
+function getInnertube(): Promise<Innertube> {
+  if (!_innertubePromise) {
+    const timedFetch = createTimedFetch(YOUTUBE_FETCH_TIMEOUT_MS);
+    _innertubePromise = Innertube.create({
+      fetch: timedFetch,
+      generate_session_locally: true,
+      retrieve_innertube_config: false,
+    });
+  }
+  return _innertubePromise;
+}
+
 /**
  * Fetch subtitles via youtubei.js Innertube API.
  *
@@ -137,20 +154,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  * in restricted network environments (e.g., local workerd dev).
  */
 export async function fetchSubtitlesViaInnertube(videoId: string): Promise<string> {
-  const timedFetch = createTimedFetch(YOUTUBE_FETCH_TIMEOUT_MS);
-
-  // Innertube.create() accepts a custom fetch function that applies to all internal requests
   const innertube = await withTimeout(
-    Innertube.create({
-      fetch: timedFetch,
-      generate_session_locally: true,
-      retrieve_innertube_config: false,
-    }),
+    getInnertube(),
     INNERTUBE_TIMEOUT_MS,
     'Innertube.create()',
   );
 
-  // getInfo also uses the custom fetch from session
+  // getInfo uses the cached session's custom fetch
   const info = await withTimeout(
     innertube.getInfo(videoId),
     INNERTUBE_TIMEOUT_MS,
@@ -260,7 +270,7 @@ export function fetchFallbackSubtitles(): string {
 // ========== Orchestrator ==========
 
 /**
- * Orchestrator: KV cache → youtubei.js → timedtext API → hard-coded fallback.
+ * Orchestrator: KV cache → timedtext API → youtubei.js → hard-coded fallback.
  * Caches successful fetches in KV to avoid repeated YouTube API calls.
  */
 export async function fetchSubtitlesWithFallback(videoId: string, env: Env): Promise<{ text: string; fromFallback: boolean }> {
@@ -278,21 +288,21 @@ export async function fetchSubtitlesWithFallback(videoId: string, env: Env): Pro
   let result: string | null = null;
   let fromFallback = false;
 
-  // Step 1: youtubei.js Innertube API
+  // Step 1: Timedtext API (lightweight, works for most videos)
   try {
-    console.log(`[subtitle] Attempting Innertube fetch for video ${videoId}...`);
-    result = await fetchSubtitlesViaInnertube(videoId);
-  } catch (innertubeErr) {
-    console.log(`[subtitle] Innertube fetch failed:`, innertubeErr instanceof Error ? innertubeErr.message : innertubeErr);
+    console.log(`[subtitle] Attempting timedtext fetch for video ${videoId}...`);
+    result = await fetchSubtitlesViaTimedtext(videoId);
+  } catch (timedtextErr) {
+    console.log(`[subtitle] Timedtext fetch failed:`, timedtextErr instanceof Error ? timedtextErr.message : timedtextErr);
   }
 
-  // Step 2: Timedtext API
+  // Step 2: youtubei.js Innertube API (heavy, for videos without timedtext)
   if (!result) {
     try {
-      console.log(`[subtitle] Attempting timedtext fetch for video ${videoId}...`);
-      result = await fetchSubtitlesViaTimedtext(videoId);
-    } catch (timedtextErr) {
-      console.log(`[subtitle] Timedtext fetch failed:`, timedtextErr instanceof Error ? timedtextErr.message : timedtextErr);
+      console.log(`[subtitle] Attempting Innertube fetch for video ${videoId}...`);
+      result = await fetchSubtitlesViaInnertube(videoId);
+    } catch (innertubeErr) {
+      console.log(`[subtitle] Innertube fetch failed:`, innertubeErr instanceof Error ? innertubeErr.message : innertubeErr);
     }
   }
 
@@ -329,24 +339,7 @@ export async function fetchSubtitlesWithFallback(videoId: string, env: Env): Pro
  */
 export async function fetchVideoInfo(videoId: string): Promise<{ title: string; channel: string; duration: string } | null> {
   try {
-    const innertube = await Innertube.create({
-      fetch: (input, init) => {
-        const { WEBSHARE_PROXY_HOST, WEBSHARE_PROXY_PORT, WEBSHARE_PROXY_USERNAME, WEBSHARE_PROXY_PASSWORD } = process.env as Record<string, string | undefined>;
-        if (WEBSHARE_PROXY_HOST && WEBSHARE_PROXY_PORT) {
-          return fetch(input, {
-            ...init,
-            cf: {
-              resolveOverride: `${WEBSHARE_PROXY_HOST}:${WEBSHARE_PROXY_PORT}`,
-            },
-            headers: {
-              ...(init?.headers || {}),
-              ...(WEBSHARE_PROXY_USERNAME ? { 'Proxy-Authorization': 'Basic ' + btoa(`${WEBSHARE_PROXY_USERNAME}:${WEBSHARE_PROXY_PASSWORD || ''}`) } : {}),
-            },
-          });
-        }
-        return fetch(input, init);
-      },
-    });
+    const innertube = await getInnertube();
     const info = await innertube.getInfo(videoId);
     const basic = info.basic_info;
     const seconds = basic.duration ?? 0;
