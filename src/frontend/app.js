@@ -13,34 +13,26 @@ import {
   btnTocClose, tocDrawerList, tocDrawerProgress, tocDrawerProgressText,
   tocDrawerProgressBar, tocDrawerCount, iconCopy, iconCopied,
 } from "./dom.js";
-import { state, type AppState } from "./state.js";
+import { state } from "./state.js";
 
 marked.setOptions({ breaks: true, gfm: true });
 
-interface ChapterSummaryEntry {
-  button: HTMLButtonElement;
-  box: HTMLDivElement;
-  body: HTMLDivElement;
-  sessionId: string | null;
-}
+// #1: VideoInfoCard
 
-interface W1HLabel {
-  key: string;
-  label: string;
-  icon: string;
-  className: string;
-}
+// #2: Demo link
 
-interface ChapterWrapResult {
-  section: HTMLElement;
-  title: string;
-}
+// #3: Advanced options
 
-const chapterSummaryMap = new Map<string, ChapterSummaryEntry>();
+// #4: Mobile TOC
+
+// #6: Copy icon toggle
+
+/** @type {Map<string, { button: HTMLButtonElement, box: HTMLDivElement, body: HTMLDivElement, sessionId: string }>} */
+const chapterSummaryMap = new Map();
 
 // =============================================================================
 
-function feedContent(text: string): void {
+function feedContent(text) {
   if (!state.hasReceivedFirstData) {
     state.hasReceivedFirstData = true;
     emptyState.style.display = 'none';
@@ -58,7 +50,7 @@ function feedContent(text: string): void {
     state.renderScheduled = true;
     state.rafId = requestAnimationFrame(() => {
       if (state.fullArticleText.length > state.renderedLen) {
-        resultEl.innerHTML = marked.parse(state.fullArticleText) as string;
+        resultEl.innerHTML = marked.parse(state.fullArticleText);
         const cursor = document.createElement('span');
         cursor.id = 'stream-cursor';
         cursor.className = 'cursor-blink';
@@ -80,7 +72,7 @@ function feedContent(text: string): void {
   }
 }
 
-async function streamArticle(youtubeUrl: string, rule: string, model: string, signal: AbortSignal): Promise<void> {
+async function streamArticle(youtubeUrl, rule, model, signal) {
   const qs = `model=${model}`;
   const response = await fetch("/api/generate?" + qs, {
     method: "POST",
@@ -90,14 +82,14 @@ async function streamArticle(youtubeUrl: string, rule: string, model: string, si
   });
 
   if (!response.ok) {
-    let errMsg = _.errRequestFailed(String(response.status));
-    try { const ed = await response.json() as { error?: string }; if (ed.error) errMsg = ed.error; } catch (_e) { /* ignore */ }
+    let errMsg = _.errRequestFailed(response.status);
+    try { const ed = await response.json(); if (ed.error) errMsg = ed.error; } catch (_) {}
     throw new Error(errMsg);
   }
 
   state.sessionId = response.headers.get("X-Session-Id");
   state.isFromFallback = response.headers.get("X-From-Fallback") === "true";
-  const reader = response.body!.getReader();
+  const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let lineStart = 0;
@@ -107,7 +99,7 @@ async function streamArticle(youtubeUrl: string, rule: string, model: string, si
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
 
-    let newlineIdx: number;
+    let newlineIdx;
     while ((newlineIdx = buffer.indexOf("\n", lineStart)) !== -1) {
       const line = buffer.slice(lineStart, newlineIdx).trim();
       lineStart = newlineIdx + 1;
@@ -117,13 +109,13 @@ async function streamArticle(youtubeUrl: string, rule: string, model: string, si
       if (!jsonStr) continue;
       if (jsonStr === "[DONE]") { onStreamComplete(); return; }
 
-      let parsed: Record<string, unknown>;
-      try { parsed = JSON.parse(jsonStr) as Record<string, unknown>; } catch (_e) { continue; }
+      let parsed;
+      try { parsed = JSON.parse(jsonStr); } catch (_) { continue; }
 
-      const geminiText = (parsed as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> })?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const geminiText = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (geminiText) { feedContent(geminiText); continue; }
 
-      const deepseekText = (parsed as { choices?: Array<{ delta?: { content?: string } }> })?.choices?.[0]?.delta?.content;
+      const deepseekText = parsed?.choices?.[0]?.delta?.content;
       if (deepseekText) { feedContent(deepseekText); }
     }
   }
@@ -133,39 +125,39 @@ async function streamArticle(youtubeUrl: string, rule: string, model: string, si
   }
 }
 
-function updateMetadata(): void {
+function updateMetadata() {
   const text = state.fullArticleText;
   const chapters = (text.match(/^## /gm) || []).length;
   const chars = text.replace(/\s/g, '').length;
   const words = Math.round(chars * 0.6);
   const readTime = Math.max(1, Math.round(words / 200));
 
-  document.getElementById('meta-chapters')!.textContent = String(chapters);
-  document.getElementById('meta-readtime')!.textContent = readTime + ' 分钟';
-  document.getElementById('meta-words')!.textContent = words.toLocaleString();
-  document.getElementById('meta-lang')!.textContent = '中文';
-  document.getElementById('meta-time')!.textContent =
+  document.getElementById('meta-chapters').textContent = chapters;
+  document.getElementById('meta-readtime').textContent = readTime + ' 分钟';
+  document.getElementById('meta-words').textContent = words.toLocaleString();
+  document.getElementById('meta-lang').textContent = '中文';
+  document.getElementById('meta-time').textContent =
     new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   headerChapterCount.textContent = chapters + ' 章';
 }
 
-function applyFontSize(): void {
+function applyFontSize() {
   resultEl.style.setProperty('--article-font-size', (state.fontSize / 100) + 'em');
-  document.getElementById('fontsize-label')!.textContent = state.fontSize + '%';
+  document.getElementById('fontsize-label').textContent = state.fontSize + '%';
 }
 
-document.getElementById('btn-font-down')!.addEventListener('click', () => {
+document.getElementById('btn-font-down').addEventListener('click', () => {
   if (state.fontSize > 80) { state.fontSize -= 10; applyFontSize(); }
 });
-document.getElementById('btn-font-up')!.addEventListener('click', () => {
+document.getElementById('btn-font-up').addEventListener('click', () => {
   if (state.fontSize < 140) { state.fontSize += 10; applyFontSize(); }
 });
-document.getElementById('btn-font-reset')!.addEventListener('click', () => {
+document.getElementById('btn-font-reset').addEventListener('click', () => {
   state.fontSize = 100; applyFontSize();
 });
 
-// Copy with icon toggle
-document.getElementById('btn-copy')!.addEventListener('click', () => {
+// #6: Copy with icon toggle
+document.getElementById('btn-copy').addEventListener('click', () => {
   if (state.copyTimeout) clearTimeout(state.copyTimeout);
   const text = state.fullArticleText.replace(/#{1,6}\s/g, '');
   navigator.clipboard.writeText(text).then(() => {
@@ -178,14 +170,14 @@ document.getElementById('btn-copy')!.addEventListener('click', () => {
   });
 });
 
-// Share
-document.getElementById('btn-share')!.addEventListener('click', () => {
+// #6: Share
+document.getElementById('btn-share').addEventListener('click', () => {
   const url = window.location.href;
   navigator.clipboard.writeText(url).then(() => showToast('分享链接已复制到剪贴板'));
 });
 
-// Export
-document.getElementById('btn-export')!.addEventListener('click', () => {
+// #6: Export
+document.getElementById('btn-export').addEventListener('click', () => {
   const text = state.fullArticleText;
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -197,7 +189,7 @@ document.getElementById('btn-export')!.addEventListener('click', () => {
   showToast('文章已导出');
 });
 
-function validateYouTubeUrl(url: string): boolean {
+function validateYouTubeUrl(url) {
   const patterns = [
     /^(https?:\/\/)?(www\.)?youtube\.com\/watch\?v=[\w-]{11}/,
     /^(https?:\/\/)?(www\.)?youtube\.com\/shorts\/[\w-]{11}/,
@@ -206,25 +198,26 @@ function validateYouTubeUrl(url: string): boolean {
   return patterns.some(p => p.test(url));
 }
 
-function extractVideoId(url: string): string | null {
+function extractVideoId(url) {
   const m1 = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/);
   return m1 ? m1[1] : null;
 }
 
-function handleVideoUrlInput(url: string): void {
+function handleVideoUrlInput(url) {
   const isValid = validateYouTubeUrl(url);
   const empty = url.trim() === '';
 
   if (isValid) {
     videoInfoCard.classList.remove('hidden');
+    // Try to fetch video info via oEmbed
     const videoId = extractVideoId(url);
     if (videoId) {
       try {
         fetch('https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=' + videoId + '&format=json')
           .then(r => r.json())
           .then(data => {
-            videoInfoTitle.textContent = (data as { title?: string }).title || url;
-            videoInfoChannel.textContent = (data as { author_name?: string }).author_name || 'YouTube';
+            videoInfoTitle.textContent = data.title || url;
+            videoInfoChannel.textContent = data.author_name || 'YouTube';
             videoInfoDuration.textContent = '—';
           })
           .catch(() => {
@@ -232,7 +225,7 @@ function handleVideoUrlInput(url: string): void {
             videoInfoChannel.textContent = 'YouTube';
             videoInfoDuration.textContent = '—';
           });
-      } catch (_e) {
+      } catch (_) {
         videoInfoTitle.textContent = url;
         videoInfoChannel.textContent = 'YouTube';
         videoInfoDuration.textContent = '—';
@@ -247,22 +240,24 @@ function handleVideoUrlInput(url: string): void {
   }
 }
 
-(youtubeUrlInput as HTMLInputElement).addEventListener('input', () => {
-  const url = (youtubeUrlInput as HTMLInputElement).value;
+youtubeUrlInput.addEventListener('input', () => {
+  const url = youtubeUrlInput.value;
   handleVideoUrlInput(url);
 
+  // Clear URL error on input
   if (url.trim()) urlErrorEl.textContent = '';
 });
 
-// Demo link
+// #2: Demo link
 btnDemoLink.addEventListener('click', () => {
   const demoUrl = 'https://www.youtube.com/watch?v=xRh2sVcNXQ8';
-  (youtubeUrlInput as HTMLInputElement).value = demoUrl;
+  youtubeUrlInput.value = demoUrl;
   handleVideoUrlInput(demoUrl);
 });
 
-function updateDemoLinkState(): void {
-  (btnDemoLink as HTMLButtonElement).disabled = state.isGenerating;
+// Enable/disable demo link based on generating state
+function updateDemoLinkState() {
+  btnDemoLink.disabled = state.isGenerating;
 }
 
 btnAdvancedToggle.addEventListener('click', () => {
@@ -278,9 +273,9 @@ btnAdvancedToggle.addEventListener('click', () => {
   }
 });
 
-function onStreamComplete(): void {
+function onStreamComplete() {
   if (state.rafId) { cancelAnimationFrame(state.rafId); state.rafId = 0; state.renderScheduled = false; }
-  resultEl.innerHTML = marked.parse(state.fullArticleText) as string;
+  resultEl.innerHTML = marked.parse(state.fullArticleText);
   state.renderedLen = state.fullArticleText.length;
   updateMetadata();
 
@@ -289,7 +284,7 @@ function onStreamComplete(): void {
 
   initTOC();
 
-  const sections = resultEl.querySelectorAll('.chapter-section') as NodeListOf<HTMLElement>;
+  const sections = resultEl.querySelectorAll('.chapter-section');
   sections.forEach((section) => {
     const h2 = section.querySelector('h2');
     if (h2) addChapter5W1H(section, h2.textContent || '');
@@ -297,20 +292,20 @@ function onStreamComplete(): void {
 
   articleFooter.classList.remove('hidden');
 
-  const badge = document.getElementById('header-status-badge')!;
+  const badge = document.getElementById('header-status-badge');
   badge.className = badge.className.replace('bg-blue-100 text-blue-700', 'bg-green-100 text-green-700');
-  document.getElementById('header-status-dot')!.className = 'w-1.5 h-1.5 bg-green-500 rounded-full';
-  document.getElementById('header-status-text')!.textContent = '已生成';
+  document.getElementById('header-status-dot').className = 'w-1.5 h-1.5 bg-green-500 rounded-full';
+  document.getElementById('header-status-text').textContent = '已生成';
 
   state.isGenerating = false;
-  (generateBtn as HTMLButtonElement).disabled = false;
+  generateBtn.disabled = false;
   generateBtnText.textContent = _.btnGenerate;
-  (youtubeUrlInput as HTMLInputElement).disabled = false;
-  (customRulesInput as HTMLTextAreaElement).disabled = false;
+  youtubeUrlInput.disabled = false;
+  customRulesInput.disabled = false;
   updateDemoLinkState();
 }
 
-function classifyBlocks(): void {
+function classifyBlocks() {
   resultEl.querySelectorAll('h1').forEach(el => { el.classList.add('block-heading', 'h1'); });
   resultEl.querySelectorAll('h2').forEach(el => { el.classList.add('block-heading', 'h2'); });
   resultEl.querySelectorAll('h3,h4,h5,h6').forEach(el => el.classList.add('block-heading'));
@@ -333,7 +328,7 @@ function classifyBlocks(): void {
   });
 }
 
-function wrapNewChapters(): void {
+function wrapNewChapters() {
   const h2s = resultEl.querySelectorAll('h2');
   for (let i = 0; i < h2s.length; i++) {
     const h2 = h2s[i];
@@ -342,7 +337,7 @@ function wrapNewChapters(): void {
   }
 }
 
-function wrapChapterStructure(h2: HTMLHeadingElement, index: number): ChapterWrapResult {
+function wrapChapterStructure(h2, index) {
   const id = 'chapter-' + index;
   h2.id = id;
 
@@ -350,11 +345,11 @@ function wrapChapterStructure(h2: HTMLHeadingElement, index: number): ChapterWra
   section.className = 'chapter-section open';
   section.dataset.chapterId = id;
 
-  h2.parentNode!.insertBefore(section, h2);
+  h2.parentNode.insertBefore(section, h2);
   section.appendChild(h2);
 
   let next = section.nextSibling;
-  while (next && (next as Element).tagName !== 'H2') {
+  while (next && next.tagName !== 'H2') {
     const current = next;
     next = current.nextSibling;
     section.appendChild(current);
@@ -363,7 +358,7 @@ function wrapChapterStructure(h2: HTMLHeadingElement, index: number): ChapterWra
   const title = h2.textContent || '';
   const row = document.createElement('div');
   row.className = 'chapter-heading-row';
-  h2.parentNode!.insertBefore(row, h2);
+  h2.parentNode.insertBefore(row, h2);
   row.appendChild(h2);
 
   const chevron = document.createElement('button');
@@ -391,7 +386,7 @@ function wrapChapterStructure(h2: HTMLHeadingElement, index: number): ChapterWra
   return { section, title };
 }
 
-function addChapter5W1H(section: HTMLElement, title: string): void {
+function addChapter5W1H(section, title) {
   const row = section.querySelector('.chapter-heading-row');
   if (!row || row.querySelector('.btn-5w1h')) return;
 
@@ -441,7 +436,7 @@ function addChapter5W1H(section: HTMLElement, title: string): void {
   summaryHeader.addEventListener('click', () => toggleSummaryBox(title));
 }
 
-function updateTOCItems(): void {
+function updateTOCItems() {
   const h2s = resultEl.querySelectorAll('h2');
   const total = h2s.length;
 
@@ -462,7 +457,7 @@ function updateTOCItems(): void {
   h2s.forEach((h2, i) => {
     const title = h2.textContent || '';
 
-    const itemHTML = (num: number): string =>
+    const itemHTML = (num) =>
       '<span class="toc-num">' + num + '</span>'
       + '<span class="flex-1 line-clamp-2 text-left">' + title + '</span>'
       + '<svg class="toc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
@@ -488,7 +483,7 @@ function updateTOCItems(): void {
   if (state.tocScrollTracking) updateActiveTOC();
 }
 
-function initTOC(): void {
+function initTOC() {
   updateTOCItems();
   if (!state.tocScrollTracking) {
     state.tocScrollTracking = true;
@@ -496,7 +491,7 @@ function initTOC(): void {
   }
 }
 
-function updateActiveTOC(): void {
+function updateActiveTOC() {
   const h2s = resultEl.querySelectorAll('h2');
   if (h2s.length === 0) return;
 
@@ -509,22 +504,26 @@ function updateActiveTOC(): void {
     if (rect.top < window.innerHeight * 0.5) activeIdx = i;
   });
 
+  // Update desktop
   desktopItems.forEach((item, i) => {
     item.classList.toggle('active', i === activeIdx);
   });
 
+  // Update mobile drawer
   mobileItems.forEach((item, i) => {
     item.classList.toggle('active', i === activeIdx);
   });
 
+  // Progress bars
   const total = h2s.length;
   const pct = total > 0 ? Math.min(100, Math.round(((activeIdx + 1) / total) * 100)) : 0;
 
-  (tocProgressBar as HTMLElement).style.width = pct + '%';
+  tocProgressBar.style.width = pct + '%';
   tocProgressText.textContent = pct + '%';
-  (tocDrawerProgressBar as HTMLElement).style.width = pct + '%';
+  tocDrawerProgressBar.style.width = pct + '%';
   tocDrawerProgressText.textContent = pct + '%';
 
+  // Track active chapter sections for highlighting
   h2s.forEach((h2, i) => {
     const section = h2.closest('.chapter-section');
     if (section) {
@@ -533,13 +532,14 @@ function updateActiveTOC(): void {
   });
 }
 
-function openMobileToc(): void {
+// #4: Mobile TOC — drawer open/close
+function openMobileToc() {
   tocDrawer.classList.remove('translate-x-full');
   tocBackdrop.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 }
 
-function closeMobileToc(): void {
+function closeMobileToc() {
   tocDrawer.classList.add('translate-x-full');
   tocBackdrop.classList.add('hidden');
   document.body.style.overflow = '';
@@ -549,7 +549,7 @@ btnMobileToc.addEventListener('click', openMobileToc);
 btnTocClose.addEventListener('click', closeMobileToc);
 tocBackdrop.addEventListener('click', closeMobileToc);
 
-const W1H_LABELS: W1HLabel[] = [
+const W1H_LABELS = [
   { key: 'who', label: _.labelWho, icon: '👤', className: 'w1h-blue' },
   { key: 'what', label: _.labelWhat, icon: '📋', className: 'w1h-green' },
   { key: 'when', label: _.labelWhen, icon: '⏰', className: 'w1h-amber' },
@@ -558,13 +558,13 @@ const W1H_LABELS: W1HLabel[] = [
   { key: 'how', label: _.labelHow, icon: '🔧', className: 'w1h-indigo' },
 ];
 
-function toggleSummaryBox(title: string): void {
+function toggleSummaryBox(title) {
   const entry = chapterSummaryMap.get(title);
   if (!entry) return;
   entry.box.classList.toggle('open');
 }
 
-async function handle5W1HClick(title: string): Promise<void> {
+async function handle5W1HClick(title) {
   const entry = chapterSummaryMap.get(title);
   if (!entry) return;
 
@@ -585,24 +585,23 @@ async function handle5W1HClick(title: string): Promise<void> {
 
   try {
     if (!entrySessionId) throw new Error('No session');
-    const model = (document.getElementById('ai-provider') as unknown as HTMLSelectElement).value;
+    const model = document.getElementById('ai-provider').value;
     const resp = await fetch(`/api/5w1h?model=${model}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chapter: title, sessionId: entrySessionId }),
     });
-    if (!resp.ok) throw new Error(_.errRequestFailed(String(resp.status)));
-    const data = await resp.json() as { summary?: Record<string, string> };
+    if (!resp.ok) throw new Error(_.errRequestFailed(resp.status));
+    const data = await resp.json();
     render5W1H(body, data.summary || data);
     box.dataset.loaded = 'true';
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    body.innerHTML = '<div class="w1h-error">' + _.errLoadFailed(msg) + '</div>';
+  } catch (e) {
+    body.innerHTML = '<div class="w1h-error">' + _.errLoadFailed(e.message) + '</div>';
     box.dataset.loaded = '';
   }
 }
 
-function render5W1H(body: HTMLElement, summary: unknown): void {
+function render5W1H(body, summary) {
   if (!summary || typeof summary !== 'object') {
     body.innerHTML = '<div class="w1h-error">' + _.errParse5W1H + '</div>';
     return;
@@ -611,14 +610,12 @@ function render5W1H(body: HTMLElement, summary: unknown): void {
   const container = document.createElement('div');
   container.className = 'w1h-cards';
 
-  const summaryRecord = summary as Record<string, string>;
-
   W1H_LABELS.forEach(({ key, label, icon, className }) => {
     const card = document.createElement('div');
     card.className = 'w1h-card ' + className;
     card.innerHTML =
       '<div class="w1h-card-header">' + icon + ' ' + label + '</div>'
-      + '<div class="w1h-card-body">' + (summaryRecord[key] || '—') + '</div>';
+      + '<div class="w1h-card-body">' + (summary[key] || '—') + '</div>';
     container.appendChild(card);
   });
 
@@ -626,7 +623,7 @@ function render5W1H(body: HTMLElement, summary: unknown): void {
   body.appendChild(container);
 }
 
-function validateURL(url: string): string | null {
+function validateURL(url) {
   if (!url || !url.trim()) return _.errEmptyURL;
   const patterns = [
     /^(https?:\/\/)?(www\.)?youtube\.com\/watch\?v=[\w-]{11}/,
@@ -637,12 +634,12 @@ function validateURL(url: string): string | null {
   return null;
 }
 
-function setUIState(generating: boolean): void {
+function setUIState(generating) {
   state.isGenerating = generating;
-  (generateBtn as HTMLButtonElement).disabled = generating;
+  generateBtn.disabled = generating;
   generateBtnText.textContent = generating ? _.btnGenerating : _.btnGenerate;
-  (youtubeUrlInput as HTMLInputElement).disabled = generating;
-  (customRulesInput as HTMLTextAreaElement).disabled = generating;
+  youtubeUrlInput.disabled = generating;
+  customRulesInput.disabled = generating;
   updateDemoLinkState();
 
   if (generating) {
@@ -664,10 +661,10 @@ function setUIState(generating: boolean): void {
     state.hasReceivedFirstData = false;
     state.tocScrollTracking = false;
 
-    const badge = document.getElementById('header-status-badge')!;
+    const badge = document.getElementById('header-status-badge');
     badge.className = badge.className.replace('bg-green-100 text-green-700', 'bg-blue-100 text-blue-700');
-    document.getElementById('header-status-dot')!.className = 'w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse';
-    document.getElementById('header-status-text')!.textContent = '生成中';
+    document.getElementById('header-status-dot').className = 'w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse';
+    document.getElementById('header-status-text').textContent = '生成中';
 
     streamingEl.classList.remove('hidden');
   }
@@ -676,25 +673,25 @@ function setUIState(generating: boolean): void {
 generateBtn.addEventListener('click', async () => {
   urlErrorEl.textContent = '';
 
-  const url = (youtubeUrlInput as HTMLInputElement).value;
+  const url = youtubeUrlInput.value;
   const urlErr = validateURL(url);
   if (urlErr) { urlErrorEl.textContent = urlErr; return; }
 
   setUIState(true);
 
+  // Cancel previous request
   if (state.abortController) state.abortController.abort();
   state.abortController = new AbortController();
 
-  const rule = (customRulesInput as HTMLTextAreaElement).value;
-  const model = (document.getElementById('ai-provider') as unknown as HTMLSelectElement).value;
+  const rule = customRulesInput.value;
+  const model = document.getElementById('ai-provider').value;
 
   try {
     await streamArticle(url.trim(), rule, model, state.abortController.signal);
-  } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === 'AbortError') return;
+  } catch (err) {
+    if (err.name === 'AbortError') return;
     streamingEl.classList.add('hidden');
-    const msg = err instanceof Error ? err.message : String(err);
-    errorEl.textContent = msg || _.errGenerateFailed;
+    errorEl.textContent = err.message || _.errGenerateFailed;
     errorEl.classList.remove('hidden');
     articleHeader.classList.add('hidden');
     metadataEl.classList.add('hidden');
@@ -702,10 +699,10 @@ generateBtn.addEventListener('click', async () => {
     articleActions.classList.add('hidden');
     state.fullArticleText = ''; state.renderedLen = 0;
     state.isGenerating = false;
-    (generateBtn as HTMLButtonElement).disabled = false;
+    generateBtn.disabled = false;
     generateBtnText.textContent = _.btnGenerate;
-    (youtubeUrlInput as HTMLInputElement).disabled = false;
-    (customRulesInput as HTMLTextAreaElement).disabled = false;
+    youtubeUrlInput.disabled = false;
+    customRulesInput.disabled = false;
     updateDemoLinkState();
     emptyState.style.display = '';
   } finally {
@@ -713,7 +710,7 @@ generateBtn.addEventListener('click', async () => {
   }
 });
 
-function collapseSidebar(): void {
+function collapseSidebar() {
   inputPanel.classList.add('sidebar-sliding');
   setTimeout(() => {
     document.body.classList.add('sidebar-collapsed');
@@ -721,9 +718,9 @@ function collapseSidebar(): void {
   }, 350);
 }
 
-function expandSidebar(): void {
+function expandSidebar() {
   document.body.classList.remove('sidebar-collapsed');
-  inputPanel.offsetHeight; // force reflow
+  inputPanel.offsetHeight;
   inputPanel.classList.add('sidebar-sliding');
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -735,14 +732,14 @@ function expandSidebar(): void {
 btnCollapseSidebar.addEventListener('click', collapseSidebar);
 btnExpandSidebar.addEventListener('click', expandSidebar);
 
-document.getElementById('btn-login')!.addEventListener('click', () => {
-  const landing = document.getElementById('landing')!;
+document.getElementById('btn-login').addEventListener('click', () => {
+  const landing = document.getElementById('landing');
   landing.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
   landing.style.opacity = '0';
   landing.style.transform = 'scale(1.05)';
   setTimeout(() => {
     landing.style.display = 'none';
-    document.getElementById('app-container')!.classList.remove('hidden');
+    document.getElementById('app-container').classList.remove('hidden');
   }, 400);
 });
 
