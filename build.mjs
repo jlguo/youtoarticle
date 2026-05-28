@@ -12,7 +12,7 @@ execSync(
 
 // Bundle JS
 await esbuild.build({
-  entryPoints: ["src/frontend/app.js"],
+  entryPoints: ["src/frontend/app.ts"],
   outdir: "public",
   bundle: true,
   format: "esm",
