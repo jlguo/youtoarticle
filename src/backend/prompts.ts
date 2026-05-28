@@ -3,18 +3,22 @@
 // DeepSeek (messages array) formats.
 
 const ARTICLE_SYSTEM_DEFAULT =
-  "你是一位专业的内容编辑。请基于 YouTube 视频字幕生成一篇结构清晰的中文文章。\n\n" +
-  "处理规则：\n\n" +
-  "1. 如果能识别出字幕中的不同说话人：\n" +
-  "   - 使用 ## 话题概括 作为章节标题\n" +
-  "   - 内容以对话形式编排，格式为「说话人：发言内容」\n" +
-  "   - 每次说话人切换时另起一段，保留问答节奏\n\n" +
-  "2. 如果不能区分说话人：\n" +
-  "   - 按主题分段，使用 ## 主题概括 作为章节标题\n" +
-  "   - 用自己的话精炼总结该主题的核心内容\n\n" +
+  "你是一位专业的内容编辑。请基于 YouTube 视频字幕生成一篇结构清晰的中文访谈文章。\n\n" +
+  "格式要求：\n" +
+  "1. 主标题：参考「对话[嘉宾名]：[核心主题]」的形式拟定，贴合采访核心话题。\n" +
+  "2. 整体结构：\n" +
+  "   - 开头用主标题引出全文，无需额外引言。\n" +
+  "   - 主体按「【小标题 + 问答】」的形式呈现，小标题概括该话题的核心方向。\n" +
+  "   - 每个话题下，先写提问者的问题，再写嘉宾的回答。必须从字幕原文中识别提问者和嘉宾的真实姓名，使用「姓名: 内容」格式标注；如确实无法从原文确定姓名，可使用「提问者」「嘉宾」作为替代。\n" +
+  "3. 分点格式：当嘉宾在对话中明确使用了分点列举（如「第一…第二…」「一是…二是…」「首先…其次…最后…」「first…second…」「one…two…」或数字序号等表述）时，必须在文章中按分点呈现，格式与嘉宾原话保持一致。\n" +
+  "4. 语言与内容：\n" +
+  "   - 完整保留采访原文的核心观点和细节，不添加、不编造任何额外信息，不做主观解读。\n" +
+  "   - 语言保持专业、克制风格，还原嘉宾的表达逻辑，不口语化、不冗余。\n" +
+  "5. 排版规范：\n" +
+  "   - 主标题单独一行（# 一级标题），板块小标题使用 ## 二级标题，与正文空一行分隔。\n" +
+  "   - 提问和回答分段呈现，对话标识格式一致，避免大段文字堆砌。\n\n" +
   "统一要求：\n" +
-  "- # 一级标题为文章主标题\n" +
-  "- 使用标准 Markdown 格式\n" +
+  "- 使用标准 Markdown 格式（# 一级标题、## 二级标题）\n" +
   "- 如果不是中文，先翻译为中文再输出";
 
 const ARTICLE_SYSTEM_CUSTOM =
@@ -48,12 +52,19 @@ function w1hUserPrompt(chapter: string, fullText: string): string {
   return "完整文章内容：\n" + fullText + "\n\n请输出「" + chapter + "」章节的 5W1H 分析：";
 }
 
+// ── Shared prompt logic (not model-specific) ──
+
+function buildArticleSystemPrompt(rule?: string): string {
+  if (rule?.trim()) {
+    return ARTICLE_SYSTEM_CUSTOM + "\n" + rule;
+  }
+  return ARTICLE_SYSTEM_DEFAULT;
+}
+
 // ── Gemini format (single string) ──
 
 export function buildArticlePrompt(subtitle: string, rule?: string): string {
-  const system = rule?.trim() ? ARTICLE_SYSTEM_CUSTOM : ARTICLE_SYSTEM_DEFAULT;
-  const suffix = rule?.trim() ? "\n" + rule + "\n\n" : "\n\n";
-  return system + suffix + subtitleUserPrompt(subtitle);
+  return buildArticleSystemPrompt(rule) + "\n\n" + subtitleUserPrompt(subtitle);
 }
 
 export function build5W1HPrompt(chapter: string, fullText: string): string {
@@ -63,9 +74,8 @@ export function build5W1HPrompt(chapter: string, fullText: string): string {
 // ── DeepSeek format (messages array) ──
 
 export function buildArticleMessages(subtitle: string, rule?: string): Array<{ role: string; content: string }> {
-  const system = rule?.trim() ? ARTICLE_SYSTEM_CUSTOM + " " + rule : ARTICLE_SYSTEM_DEFAULT;
   return [
-    { role: "system", content: system },
+    { role: "system", content: buildArticleSystemPrompt(rule) },
     { role: "user", content: subtitleUserPrompt(subtitle) },
   ];
 }

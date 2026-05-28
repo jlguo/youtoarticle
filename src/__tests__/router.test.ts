@@ -120,8 +120,8 @@ describe("handleRequest", () => {
       expect(res.headers.get("X-Session-Id")).toBeTruthy();
     });
 
-    it("uses DeepSeek when ?provider=deepseek", async () => {
-      const req = new Request("http://localhost/api/generate?provider=deepseek", {
+    it("uses DeepSeek when ?model=deepseek-chat", async () => {
+      const req = new Request("http://localhost/api/generate?model=deepseek-chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ youtubeUrl: "https://youtu.be/abcdefghijk" }),
       });
@@ -131,7 +131,7 @@ describe("handleRequest", () => {
 
     it("falls back to Gemini when DeepSeek key missing", async () => {
       const envNoDS = createEnv({ DEEPSEEK_API_KEY: undefined });
-      const req = new Request("http://localhost/api/generate?provider=deepseek", {
+      const req = new Request("http://localhost/api/generate?model=deepseek-chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ youtubeUrl: "https://youtu.be/abcdefghijk" }),
       });
