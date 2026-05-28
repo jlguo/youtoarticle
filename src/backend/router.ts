@@ -9,6 +9,7 @@ import {
   GEMINI_MODEL,
   GEMINI_MODEL_LITE,
   ARTICLE_KV_PREFIX,
+  SUBTITLE_MAX_CHARS,
 } from "./config";
 import { jsonResponse, corsHeaders } from "./response";
 import { parseJSONBody, getStringField } from "./validation";
@@ -62,20 +63,29 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
       const { text: subtitle, fromFallback } = await fetchSubtitlesWithFallback(videoId, env);
       const rule = getStringField(body, "rule");
+
+      // Truncate long subtitles to avoid CPU/memory limits and excessive AI reasoning output
+      const truncatedSubtitle = subtitle.length > SUBTITLE_MAX_CHARS
+        ? subtitle.slice(0, SUBTITLE_MAX_CHARS)
+        : subtitle;
+      if (subtitle.length > SUBTITLE_MAX_CHARS) {
+        console.log(`[router] Truncated subtitle from ${subtitle.length} to ${SUBTITLE_MAX_CHARS} chars`);
+      }
+
       const provider = getProvider(request, env);
       const apiKey = getAPIKey(provider, env);
 
       let aiResponse: Response;
       if (provider === PROVIDER_DEEPSEEK) {
-        aiResponse = await deepseekStreamArticle(subtitle, rule, apiKey);
+        aiResponse = await deepseekStreamArticle(truncatedSubtitle, rule, apiKey);
       } else {
-        aiResponse = await geminiStreamArticle(subtitle, rule, apiKey, getModel(request));
+        aiResponse = await geminiStreamArticle(truncatedSubtitle, rule, apiKey, getModel(request));
       }
 
       if (!aiResponse.ok || !aiResponse.body) return aiResponse;
 
       const sessionId = crypto.randomUUID();
-      const teeBody = teeAndSaveArticle(aiResponse.body, sessionId, env, subtitle, rule);
+      const teeBody = teeAndSaveArticle(aiResponse.body, sessionId, env, truncatedSubtitle, rule);
 
       return new Response(teeBody, {
         status: aiResponse.status,

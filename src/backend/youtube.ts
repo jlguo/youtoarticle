@@ -26,37 +26,39 @@ function stripTimestamps(text: string): string {
 }
 
 /**
- * Parse YouTube subtitle XML format into clean text.
- * YouTube timedtext XML looks like:
- *   <transcript>
- *     <text start="0.0" dur="3.5">Hello world</text>
- *     <text start="3.5" dur="2.0">How are you</text>
- *   </transcript>
+ * Parse YouTube subtitle XML into clean text using indexOf (avoids regex backtracking on large input).
+ * YouTube timedtext XML: <transcript><text start="0.0" dur="3.5">Hello</text>...</transcript>
  */
 function parseXMLSubtitle(xmlText: string): string {
-  const texts: string[] = [];
-  const regex = /<text[^>]*>(.*?)<\/text>/gs;
-  // Single-pass HTML entity + escape decoding
-  const entityMap: Record<string, string> = {
-    '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'",
-  };
-  const entityRe = /&(?:amp|lt|gt|quot|#39);|\\[n"]/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(xmlText)) !== null) {
-    const content = match[1].replace(entityRe, (m) => {
-      if (m in entityMap) return entityMap[m];
-      if (m === '\\n') return ' ';
-      if (m === '\\"') return '"';
-      return m;
-    });
-    texts.push(content);
+  const TAG_OPEN = "<text ";
+  const TAG_CLOSE = "</text>";
+  let pos = 0;
+  let result = "";
+
+  while ((pos = xmlText.indexOf(TAG_OPEN, pos)) !== -1) {
+    const contentStart = xmlText.indexOf(">", pos) + 1;
+    if (contentStart === 0) break;
+    const contentEnd = xmlText.indexOf(TAG_CLOSE, contentStart);
+    if (contentEnd === -1) break;
+
+    let content = xmlText.slice(contentStart, contentEnd);
+    // Decode common HTML entities inline
+    content = content
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\\n/g, " ")
+      .replace(/\\"/g, '"');
+
+    if (result) result += " ";
+    result += content;
+    pos = contentEnd + TAG_CLOSE.length;
   }
-  // If no XML tags found, try stripping timestamps directly (plain text fallback)
-  if (texts.length === 0) {
-    return stripTimestamps(xmlText);
-  }
-  const joined = texts.join(' ').replace(/\s+/g, ' ').trim();
-  return joined;
+
+  if (!result) return ""; // No XML tags found → empty
+  return result;
 }
 
 /**

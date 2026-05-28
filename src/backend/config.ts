@@ -8,6 +8,11 @@
 export const YOUTUBE_FETCH_TIMEOUT_MS = 5_000;
 export const YOUTUBE_TIMEDTEXT_URL = "https://www.youtube.com/api/timedtext";
 
+// Max subtitle length before truncation (characters).
+// Long subtitles cause excessive CPU in XML parsing + prompt construction
+// and inflate DeepSeek reasoning output, hitting Cloudflare Worker limits.
+export const SUBTITLE_MAX_CHARS = 15_000;
+
 // Lightweight Innertube API (YouTube's internal JSON API — no heavy library needed)
 export const INNERTUBE_PLAYER_URL = "https://www.youtube.com/youtubei/v1/player";
 export const INNERTUBE_API_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";

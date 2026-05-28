@@ -23,8 +23,18 @@ function parseSSELine(line: string): string | null {
   return null;
 }
 
-// Single-reader stream wrapper: passes data through while accumulating article text.
-// Uses one reader to avoid "locked to a reader" errors — no tee() needed.
+function extractTextFromSSE(raw: string): string {
+  const lines = raw.split("\n");
+  let text = "";
+  for (const line of lines) {
+    const t = parseSSELine(line.trim());
+    if (t) text += t;
+  }
+  return text;
+}
+
+// Pass-through stream wrapper: relays data to client immediately.
+// Accumulates raw bytes and parses/decode ONLY once at the end to save CPU.
 export function teeAndSaveArticle(
   body: ReadableStream,
   sessionId: string,
@@ -33,60 +43,47 @@ export function teeAndSaveArticle(
   rule: string | undefined,
 ): ReadableStream {
   const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
   const decoder = new TextDecoder();
-  let fullText = "";
-  let buffer = "";
-  let lineStart = 0;
 
   return new ReadableStream({
     async pull(controller) {
       try {
         const { done, value } = await reader.read();
         if (done) {
-          // Flush remaining decoder bytes and process any new lines
-          buffer += decoder.decode();
-          let idx: number;
-          while ((idx = buffer.indexOf("\n", lineStart)) !== -1) {
-            const line = buffer.slice(lineStart, idx);
-            lineStart = idx + 1;
-            const text = parseSSELine(line);
-            if (text) fullText += text;
-          }
+          // All chunks received — decode once and parse once
+          if (chunks.length > 0) {
+            const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+            const merged = new Uint8Array(totalLen);
+            let offset = 0;
+            for (const c of chunks) {
+              merged.set(c, offset);
+              offset += c.length;
+            }
+            const rawText = decoder.decode(merged);
+            const fullText = extractTextFromSSE(rawText);
 
-          if (fullText) {
-            const data: SessionData = {
-              videoTitle: subtitleSnippet.slice(0, 200),
-              ruleUsed: rule || null,
-              fullText,
-            };
-            await env.SESSION_KV.put(
-              `${ARTICLE_KV_PREFIX}${sessionId}`,
-              JSON.stringify(data),
-              { expirationTtl: ARTICLE_TTL_SECONDS },
-            );
-            console.log(`[article] Saved article for session ${sessionId} (${fullText.length} chars)`);
+            if (fullText) {
+              const data: SessionData = {
+                videoTitle: subtitleSnippet.slice(0, 200),
+                ruleUsed: rule || null,
+                fullText,
+              };
+              await env.SESSION_KV.put(
+                `${ARTICLE_KV_PREFIX}${sessionId}`,
+                JSON.stringify(data),
+                { expirationTtl: ARTICLE_TTL_SECONDS },
+              );
+              console.log(`[article] Saved article for session ${sessionId} (${fullText.length} chars)`);
+            }
           }
           controller.close();
           return;
         }
 
+        // Pass through to client immediately — zero CPU work
         controller.enqueue(value);
-
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-
-        let newlineIdx: number;
-        while ((newlineIdx = buffer.indexOf("\n", lineStart)) !== -1) {
-          const line = buffer.slice(lineStart, newlineIdx);
-          lineStart = newlineIdx + 1;
-          const text = parseSSELine(line);
-          if (text) fullText += text;
-        }
-
-        if (lineStart > 4096) {
-          buffer = buffer.slice(lineStart);
-          lineStart = 0;
-        }
+        chunks.push(value);
       } catch (err) {
         controller.error(err);
       }
