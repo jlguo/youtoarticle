@@ -10,7 +10,7 @@ describe("buildArticlePrompt (Gemini format)", () => {
 
   it("includes default system instructions when no rule", () => {
     const prompt = buildArticlePrompt("test subtitle");
-    expect(prompt).toContain("Markdown");
+    expect(prompt).toContain("一级标题");
     expect(prompt).toContain("真实姓名");
     expect(prompt).not.toContain("严格遵循以下用户要求");
   });
